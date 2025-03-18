@@ -67,7 +67,6 @@ EM_LMM <- function(y,x,z,nj,precisao=0.000001,MaxIter=200)
     sum2   <- matrix(0,nrow=p,ncol=1)
     sum3   <- 0
     sum4   <- matrix(0,nrow=q,ncol=q)
-    #suma5  <- matrix(0,nrow=p,ncol=p)
     b      <- matrix(0,nrow=q,ncol=n)
     
     for (j in 1:n )
@@ -85,7 +84,6 @@ EM_LMM <- function(y,x,z,nj,precisao=0.000001,MaxIter=200)
       sum2   <- sum2+(t(x1)%*%(y1-z1%*%b[,j]))
       sum3   <- sum3+t(y1-med-z1%*%b[,j])%*%(y1-med-z1%*%b[,j])+sum(diag(Lambda%*%t(z1)%*%z1))
       sum4   <- sum4+Lambda+b[,j]%*%t(b[,j])
-      #suma5  <- suma5+ (t(x1)%*%solve(Psi)%*%x1)
       b[,j]  <- Lambda%*%t(z1)%*%(y1-med)/sigmae
     }
     
@@ -114,7 +112,7 @@ EM_LMM <- function(y,x,z,nj,precisao=0.000001,MaxIter=200)
 }
 
 ################################################################################
-### IMPLEMENTACAO DO ALGORITMO EM  - LASSO
+### EM implementation for LASSO in LMM
 ################################################################################
 
 EMLasso_LMM <- function(y,x,z,nj,lambda, precisao=0.000001,MaxIter=200)
@@ -150,7 +148,6 @@ EMLasso_LMM <- function(y,x,z,nj,lambda, precisao=0.000001,MaxIter=200)
     count <- count + 1
     sum3  <- 0
     sum4  <- matrix(0,nrow=q,ncol=q)
-    #suma5 <- matrix(0,nrow=p,ncol=p)
     b     <- matrix(0,nrow=q,ncol=n)
     zm    <- NULL
     yhat  <- matrix(0,nrow=N)
@@ -168,14 +165,11 @@ EMLasso_LMM <- function(y,x,z,nj,lambda, precisao=0.000001,MaxIter=200)
       b[,j]   <- Lambda%*%t(z1)%*%(y1-med)/sigmae
       y1m     <- y1 - z1%*%b[,j]
       yhat[(sum(nj[1:j-1])+1) : (sum(nj[1:j]))]     <- med + z1%*%b[,j]
-      #sum2   <- sum2 + (t(x1)%*%(y1-z1%*%b[,j]))
       sum3    <- sum3 + t(y1m-med)%*%(y1m-med) + sum(diag(Lambda%*%t(z1)%*%z1))
       sum4    <- sum4 + Lambda + b[,j]%*%t(b[,j])
-      #suma5   <- suma5+(t(x1)%*%IPsi%*%x1)
       zm      <- rbind(zm,y1m)
     }
     
-    #beta     <- solve(sum1)%*%sum2
     lambda1   <- lambda*sigmae
     la.eq     <- glmnet(x, zm, lambda=lambda1, family="gaussian", intercept = F, alpha=1)
     beta      <- la.eq$beta[,1]  
@@ -200,3 +194,93 @@ EMLasso_LMM <- function(y,x,z,nj,lambda, precisao=0.000001,MaxIter=200)
   class(obj.out) <- "EMLasso_LMM"
   return(obj.out)
 }
+
+################################################################################
+### EM implementation for LASSO in LMM
+################################################################################
+
+EMLasso_cvLMM <- function(y,x,z,nj, precisao=0.000001,MaxIter=200, folds = 10, 
+                          lmethod = "lambda.1se")
+{
+  
+  ################################################################################
+  ## y: response vector
+  ## x:  fixed effects design matrix
+  ## z:  random effects design matrix
+  ## nj: vector with number of observations per subject/cluster
+  ## lmethod: "lambda.1se" or "lambda.min"
+  ################################################################################
+  
+  n      <- length(nj)
+  N      <- sum(nj)
+  p      <- dim(x)[2]
+  q      <- dim(z)[2]
+  
+  #### Initial values
+  modI <- cv.glmnet(x,y,family="gaussian",intercept=FALSE,nfolds=folds, alpha=1)
+  betaI  <- glmnet(x, y, lambda=modI[[lmethod]], family="gaussian", intercept = F, alpha=1)
+  beta   <- betaI$beta[,1] 
+  sigmae <- sum((y-x%*%beta)^2)/n
+  D      <- diag(q)
+  
+  ################################################################################
+  
+  criterio <- 1
+  count    <- 0
+  
+  loglik   <- logvero(beta,sigmae,D,y,x,z,nj)
+  
+  while(criterio > precisao)
+  {
+    count <- count + 1
+    sum3  <- 0
+    sum4  <- matrix(0,nrow=q,ncol=q)
+    b     <- matrix(0,nrow=q,ncol=n)
+    zm    <- NULL
+    
+    for (j in 1:n)
+    {
+      
+      y1      <- y[(sum(nj[1:j-1])+1) : (sum(nj[1:j]))]
+      x1      <- matrix(x[(sum(nj[1:j-1])+1) : (sum(nj[1:j])),  ],ncol=p)
+      z1      <- matrix(z[(sum(nj[1:j-1])+1) : (sum(nj[1:j])) ,  ],ncol=q)
+      med     <- x1%*%beta
+      Psi     <- (z1)%*%(D)%*%t(z1) + sigmae*diag(nj[j])
+      IPsi    <- solve(Psi,tol=1e-30)
+      mediab  <- D%*%t(z1)%*%IPsi%*%(y1-med)
+      Lambda  <- solve(solve(D)+t(z1)%*%z1/sigmae,tol=1e-30)
+      b[,j]   <- Lambda%*%t(z1)%*%(y1-med)/sigmae
+      y1m     <- y1 - z1%*%b[,j]
+      sum3    <- sum3 + t(y1m-med)%*%(y1m-med) + sum(diag(Lambda%*%t(z1)%*%z1))
+      sum4    <- sum4 + Lambda + b[,j]%*%t(b[,j])
+      zm      <- rbind(zm,y1m)   ##tilde(y) 
+    }
+    
+    mod01        <- cv.glmnet(x,zm,family="gaussian",intercept=FALSE,
+                              nfolds=folds, alpha=1)
+    lambda.atual <- mod01[[lmethod]]
+    la.eq     <- glmnet(x, zm, lambda=lambda.atual, family="gaussian", 
+                        intercept = FALSE, alpha=1)
+    beta      <- la.eq$beta[,1]
+    sigmae    <- as.numeric(sum3)/N
+    D         <- sum4/n
+    
+    loglik1   <- loglik
+    loglik    <- logvero(beta,sigmae,D,y,x,z,nj)
+    criterio  <- abs(1-loglik1/loglik)
+    
+    if  (count == MaxIter) {criterio=precisao/10}
+  }
+  
+  teta           <- c(beta,sigmae,D[upper.tri(D, diag = T)])
+  npar           <- length(c(teta))-length(which(beta == 0))
+  
+  AIC            <- -2*loglik +2*npar
+  BIC            <- -2*loglik +log(N)*npar
+  obj.out        <- list(beta = beta, sigmae= sigmae, D = D, b=b, lambda = lambda.atual,
+                         sigma = sigmae, AIC=AIC, BIC=BIC, iter = count)
+  
+  class(obj.out) <- "EMLasso_cvLMM"
+  return(obj.out)
+}
+
