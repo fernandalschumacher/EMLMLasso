@@ -49,10 +49,11 @@ for (j in 1:N)
 #EMLMLasso
 ## using "lambda.1se"
 est_EMLM <- EMLasso_cvLMM(y = y,x = X,z = z,nj = nj,folds = 20, lmethod = "lambda.1se",
-                          precisao=0.00001, MaxIter=10000)
+                          precisao=0.001, MaxIter=10000)
 est_EMLM$beta
 est_EMLM$lambda
 
+plot.ts(est_EMLM$loglik)
 
 ######################
 ### REGULARIZATION BY glmmLasso

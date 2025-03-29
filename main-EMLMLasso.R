@@ -229,6 +229,9 @@ EMLasso_cvLMM <- function(y,x,z,nj, precisao=0.000001,MaxIter=200, folds = 10,
   count    <- 0
   
   loglik   <- logvero(beta,sigmae,D,y,x,z,nj)
+  loglik_vec <- rep(NA, MaxIter)
+  theta0 <- c(beta,sigmae,D[upper.tri(x = D, diag = T)])
+  theta_vec <- matrix(NA, nrow = MaxIter, ncol = length(theta0))
   
   while(criterio > precisao)
   {
@@ -267,7 +270,14 @@ EMLasso_cvLMM <- function(y,x,z,nj, precisao=0.000001,MaxIter=200, folds = 10,
     
     loglik1   <- loglik
     loglik    <- logvero(beta,sigmae,D,y,x,z,nj)
-    criterio  <- abs(1-loglik1/loglik)
+    loglik_vec[count] <- loglik
+    theta1 <- c(beta,sigmae,D[upper.tri(x = D, diag = T)])
+    theta_vec[count,] <- theta1
+    criterio <- sum(abs(theta0-theta1))
+    #criterio  <- abs(1-loglik1/loglik)
+    theta0 <-theta1
+    
+    cat("Iteration ",count," of ",MaxIter," - criterium =",criterio, " - loglik =",loglik,"\r")
     
     if  (count == MaxIter) {criterio=precisao/10}
   }
@@ -278,7 +288,8 @@ EMLasso_cvLMM <- function(y,x,z,nj, precisao=0.000001,MaxIter=200, folds = 10,
   AIC            <- -2*loglik +2*npar
   BIC            <- -2*loglik +log(N)*npar
   obj.out        <- list(beta = beta, sigmae= sigmae, D = D, b=b, lambda = lambda.atual,
-                         sigma = sigmae, AIC=AIC, BIC=BIC, iter = count)
+                         sigma = sigmae, AIC=AIC, BIC=BIC, iter = count, 
+                         loglik = loglik_vec[1:count], theta_vec = theta_vec[1:count,])
   
   class(obj.out) <- "EMLasso_cvLMM"
   return(obj.out)
