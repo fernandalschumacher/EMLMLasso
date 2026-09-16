@@ -1,0 +1,133 @@
+---
+title: "Introduction to EMLMLasso"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to EMLMLasso}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(EMLMLasso)
+```
+
+## Overview
+
+EMLMLasso fits linear mixed models with a lasso penalty on the fixed-effects
+coefficients, for clustered or longitudinal data, via an
+Expectation-Maximization (EM) algorithm. Random effects are integrated out
+at each E-step; the fixed effects are updated at each M-step with a
+coordinate-descent lasso fit (`glmnet::glmnet()`) on the random-effects-
+adjusted response.
+
+Two functions do the fitting:
+
+* `EMLasso_LMM()` fits the model at a single, user-supplied `lambda`.
+* `EMLasso_BIC_Search()` fits the model over a data-driven grid of `lambda`
+  values and selects the one that minimizes BIC. This is the recommended
+  entry point for most uses, since choosing `lambda` by hand rarely gives
+  the best model.
+
+## Simulating example data
+
+`simulate_lasso_lmm()` generates longitudinal data from a sparse linear
+mixed model: `p` fixed-effect covariates, only `pstar` of which have a
+non-zero true coefficient, plus a random intercept and random slope on
+`time`.
+
+```{r simulate}
+set.seed(2026)
+p <- 10
+pstar <- 3
+dat <- simulate_lasso_lmm(n = 40, nj = 5, p = p, pstar = pstar, sigmae = 1, seed = 2026)
+head(dat)
+```
+
+The response is `y`; the grouping variable is `id`; the fixed-effect
+covariates are `x1, ..., x10`, of which only `x1, x2, x3` have a non-zero
+true coefficient (equal to 1 in this simulation).
+
+## Fitting a single lambda
+
+`formFixed` and `formRandom` are ordinary R formulas. Here `formFixed`
+includes all ten covariates, and `formRandom = ~ time` requests a random
+intercept and a random slope on `time` (the true data-generating structure).
+
+```{r single-lambda}
+fit <- EMLasso_LMM(dat, formFixed = y ~ ., groupVar = "id", formRandom = ~time,
+                   lambda = 0.15, verbose = FALSE)
+fit
+```
+
+`coef()`, `fitted()` and `residuals()` methods are available:
+
+```{r single-lambda-methods}
+coef(fit)
+```
+
+## Selecting lambda by BIC
+
+In practice, `lambda` is rarely known in advance. `EMLasso_BIC_Search()`
+fits the model across a grid of lambda values (sized by `n_lambdas`) and
+reports the one with the lowest BIC.
+
+```{r bic-search}
+search <- EMLasso_BIC_Search(dat, formFixed = y ~ ., groupVar = "id", formRandom = ~time,
+                             n_lambdas = 15)
+search
+```
+
+The selected model correctly identifies `x1`, `x2` and `x3` as the active
+covariates, shrinking the other seven to exactly zero.
+
+```{r bic-search-coef}
+coef(search)
+```
+
+`plot()` shows BIC across the lambda grid, with the selected value marked:
+
+```{r bic-plot, fig.width=6, fig.height=4}
+plot(search)
+```
+
+`summary()` gives a more detailed readout of the selected model, including
+which covariates were shrunk to zero:
+
+```{r bic-summary}
+summary(search)
+```
+
+## A note on the random-effects structure
+
+The covariance for cluster/subject $i$ is $\Psi_i = Z_i D Z_i' + \sigma^2 I$, 
+with $b_i \sim N(0, D)$ independent of the residual errors. 
+`EMLasso_LMM()` and `EMLasso_BIC_Search()` assume Gaussian random effects and errors, and
+conditional independence within a cluster given the random effects.
+
+## A real-data example: riboflavin production
+
+`riboflavinV100` (bundled with this package; see `?riboflavinV100`) is a
+longitudinal version of the well-known riboflavin production dataset for
+*Bacillus subtilis*, with 100 gene-expression covariates as fixed-effect candidates -- a 
+high-dimensional (`p >> n`) setting. It is worked through separately in
+`vignette("EMLMLasso-riboflavin")`.
+
+## Relationship to Oliveira, Schumacher and Lachos (2026)
+
+This package implements the `EMLMLasso` algorithm introduced in Oliveira
+et al. (2026) (full citation below; run `citation("EMLMLasso")` for a
+BibTeX-ready entry).
+
+### References
+
+Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
+for regularization problems in high-dimensional linear mixed-effects
+models. *Statistical Methods in Medical Research*, 35(2), 240-254.
+[doi:10.1177/09622802251399913](https://doi.org/10.1177/09622802251399913)

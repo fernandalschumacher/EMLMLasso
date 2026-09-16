@@ -1,0 +1,21 @@
+bibentry(
+  bibtype  = "Article",
+  title    = "The use of the {EM} algorithm for regularization problems in high-dimensional linear mixed-effects models",
+  author   = c(
+    person("Daniela C.R.", "Oliveira"),
+    person("Fernanda L.", "Schumacher"),
+    person("Victor H.", "Lachos")
+  ),
+  journal  = "Statistical Methods in Medical Research",
+  year     = "2026",
+  volume   = "35",
+  number   = "2",
+  pages    = "240--254",
+  doi      = "10.1177/09622802251399913",
+  textVersion = paste(
+    "Oliveira DCR, Schumacher FL, Lachos VH (2026).",
+    "The use of the EM algorithm for regularization problems in high-dimensional linear mixed-effects models.",
+    "Statistical Methods in Medical Research, 35(2), 240-254.",
+    "doi:10.1177/09622802251399913"
+  )
+)

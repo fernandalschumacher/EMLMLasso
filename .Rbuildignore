@@ -1,0 +1,9 @@
+^legacy$
+^data-raw$
+^README\.Rmd$
+^\.git$
+^\.gitignore$
+^.*\.Rproj$
+^\.Rproj\.user$
+^doc$
+^Meta$

@@ -1,0 +1,123 @@
+---
+title: "A real-data example: riboflavin production in B. subtilis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{A real-data example: riboflavin production in B. subtilis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(EMLMLasso)
+```
+
+## The data
+
+`riboflavinV100` is a longitudinal version of the well-known riboflavin
+production dataset for *Bacillus subtilis*, reconstructed from the
+metadata in the original microarray file names to reproduce the
+longitudinal structure of the real-data application in Oliveira,
+Schumacher and Lachos (2026, Section 5): 28 strains, each measured 2-4
+times, 71 observations in total. See `?riboflavinV100` for more information.
+
+```{r data}
+data(riboflavinV100)
+dim(riboflavinV100)
+table(table(riboflavinV100$strain))
+```
+
+`strain` is the grouping variable, `time` is measured in hours after induction,
+`y` is log riboflavin production, and the remaining 100
+columns are gene expression levels -- the same 100-gene reduction used by the paper itself.
+
+## Fitting
+
+Two data-prep choices are made before fitting: `y` is standardized (mean 0, variance
+1) for numerical stability; and `time` is included as a candidate *fixed*-effect covariate (in
+addition to already being a random slope via `formRandom`), matching
+Eq. 14 of Oliveira et al. (2026). `x` itself is left on its original scale
+-- `standardize_x = TRUE` (the default) standardizes it internally and
+reports coefficients back on this original scale.
+
+We also set `refit = TRUE`. Lasso coefficients are shrunk toward zero by
+construction, which biases them as point estimates even once the right
+covariates are selected; `refit = TRUE` follows the BIC-optimal lasso fit
+with an ordinary, unpenalized `lme4::lmer()` fit on just the covariates it
+selected, and reports those as the coefficients below. This is a
+**point-estimate correction only** -- the refit's standard errors,
+p-values and confidence intervals are not valid inference, because the
+covariate set was chosen using the same data, and ignoring that selection
+step would understate their uncertainty. `EMLasso_LMM()`/
+`EMLasso_BIC_Search()` never report refit-based inferential statistics for
+this reason; only point estimates are exposed.
+
+```{r bic-search}
+genes <- setdiff(names(riboflavinV100), c("strain", "time", "y"))
+fixedForm <- as.formula(paste("y ~ time +", paste(genes, collapse = " + ")))
+
+riboflavinV100_std <- riboflavinV100
+riboflavinV100_std$y <- as.numeric(scale(riboflavinV100$y))
+
+set.seed(2026)
+search <- EMLasso_BIC_Search(riboflavinV100_std, formFixed = fixedForm, groupVar = "strain",
+                             formRandom = ~ time, MaxIter = 50, refit = TRUE)
+```
+
+## Results
+
+```{r results}
+search
+```
+
+```{r bic-plot, fig.width=6, fig.height=4}
+plot(search)
+```
+
+The BIC-optimal model keeps 14 genes plus `time`. The coefficients below
+are the post-selection refit's point estimates, not the raw (shrunk)
+lasso ones:
+
+```{r coef}
+b <- coef(search, refit = TRUE)
+sort(abs(b[!is.na(b) & b != 0]), decreasing = TRUE)
+```
+
+For comparison, the raw lasso estimates the BIC search actually selected
+on (systematically smaller in magnitude, as expected from shrinkage):
+
+```{r coef-lasso}
+b_lasso <- coef(search)
+sort(abs(b_lasso[b_lasso != 0]), decreasing = TRUE)
+```
+
+## Interpretation
+
+BIC dips to a clear interior minimum around `lambda = 0.01` (15 active
+covariates including `time`), rising on both sides of it -- fewer
+covariates selected at larger lambda, and clear overfitting (64 active
+covariates) at the smallest lambda tried. `time` is one of the selected
+coefficients and is *not* shrunk out here.
+
+The refit's fixed-effect point estimates are, as expected, clearly less
+shrunk than the raw lasso values -- consistent with correcting shrinkage
+bias -- though as always with this procedure, they remain point estimates
+only and nothing about them should be read as valid inference (see the
+caveat above).
+
+## References
+
+Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
+for regularization problems in high-dimensional linear mixed-effects
+models. *Statistical Methods in Medical Research*, 35(2), 240-254.
+[doi:10.1177/09622802251399913](https://doi.org/10.1177/09622802251399913)
+
+Buhlmann P, Kalisch M, Meier L (2014). High-Dimensional Statistics with a
+View Toward Applications in Biology. *Annual Review of Statistics and Its
+Application*, 1, 255-278.
