@@ -6,7 +6,7 @@ Authors@R: c(
         role = c("aut", "cre")),
     person("Daniela C.R.", "Oliveira", role = "aut"),
     person("Victor H.", "Lachos", role = "aut"),
-    person("Marcos Santos", "de Oliveira", email = "mso@ufsj.edu.br", role = "aut"))
+    person("Marcos Santos", "de Oliveira", role = "aut"))
 Description: Fits linear mixed models with a lasso penalty on the fixed-effects
     coefficients via an Expectation-Maximization (EM) algorithm. Random effects are
     integrated out at each E-step and the fixed-effects update is solved with a

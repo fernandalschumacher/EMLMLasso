@@ -1,6 +1,34 @@
 # EMLMLasso 0.1.0
 
-## New: `intercept` argument; no intercept fit by default (changes default numeric output)
+## Combining functions as `EMLMLasso()`
+
+* `EMLasso_LMM()` and `EMLasso_BIC_Search()` are replaced by a single
+   wrapper function, `EMLMLasso()`, matching the package name. What
+  `lambda` is now decides the mode: `NULL` (the default) or a vector of
+  two or more values searches a grid and selects by BIC (`n_lambdas`/
+  `lambda_min_ratio` control the automatic grid, or a vector of your own
+  values is used directly); a single non-negative number fits just that
+  lambda, no search. Every other argument (`intercept`, `precision`,
+  `penalty_factor`, `standardize_x`, `refit`, `verbose`, ...) is unchanged.
+* The returned object is always classed `"EMLMLasso"` and has the same
+  shape either way -- `coefficients`, `sigma2`, `D`, `lambda`, `BIC`, etc.
+  for the selected (or only) model, plus `search_performed` (`TRUE` if a
+  grid was searched), and `lambda_grid`/`bics`/`active_vars`/
+  `grid_converged`/`all_models`, which are `NULL` when `search_performed`
+  is `FALSE`. 
+* `print()`, `summary()`, `coef()`, `fitted()`, `residuals()` and `plot()`
+  now dispatch on this one class; `plot()` errors informatively if called
+  on a single-lambda fit, since there is no grid to plot.
+* `EMLasso_LMM()` and `EMLasso_BIC_Search()` are no longer exported (they
+  remain as internal engines called by `EMLMLasso()`); code calling either
+  by name needs to switch to `EMLMLasso()`.
+* Note: `precision`'s default is now `1e-4` regardless of mode. Previously
+  a single-lambda `EMLasso_LMM()` call defaulted to `1e-6` while
+  `EMLasso_BIC_Search()` defaulted to `1e-4`; `EMLMLasso()` uses one
+  default for both. Pass `precision = 1e-6` explicitly to reproduce the
+  old single-lambda default exactly.
+
+## New `intercept` argument; no intercept fit by default (changes default numeric output)
 
 * `EMLasso_LMM()` and `EMLasso_BIC_Search()` gain an `intercept` argument
   (default `FALSE`). It always wins over whatever `formFixed` itself
@@ -20,7 +48,7 @@
   random-effects predictions) or `y` minus those fitted values; the fit
   must have been created with `refit = TRUE`, or these error informatively.
 
-## New: `formFixed = y ~ .` shorthand
+## New `formFixed = y ~ .` shorthand
 
 * `EMLasso_LMM()` and `EMLasso_BIC_Search()` now accept `y ~ .` for
   `formFixed`, meaning "every other column of `data` is a candidate
@@ -52,7 +80,7 @@
 * `print.EMLasso_BIC_Search()` inherits this fix automatically (it prints
   `best_model` via `print.EMLasso_LMM()`).
 
-## New: post-selection refit (`refit` argument)
+## New post-selection refit (`refit` argument)
 
 * `EMLasso_LMM()` and `EMLasso_BIC_Search()` gain a `refit` argument
   (default `FALSE`). Lasso coefficients are shrunk toward zero by
@@ -82,7 +110,7 @@
   reports the refit coefficients as its primary results, alongside the
   raw lasso estimates for comparison.
 
-## New: real-data example (`riboflavinV100`)
+## New real-data example (`riboflavinV100`)
 
 * Added `riboflavinV100`, a longitudinal version of the riboflavin
   production dataset for *B. subtilis* (Buhlmann, Kalisch and Meier, 2014),

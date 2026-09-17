@@ -1,4 +1,7 @@
-#' Fit a lasso-penalized linear mixed model via EM
+#' Fit a lasso-penalized linear mixed model via EM, for a single lambda
+#'
+#' Internal engine, called by [EMLMLasso()] both for a single-lambda fit and
+#' for every grid point of a BIC search. Not exported -- use [EMLMLasso()].
 #'
 #' Fits a linear mixed model with a lasso penalty on the fixed-effects
 #' coefficients for a single, fixed value of the tuning parameter `lambda`,
@@ -17,114 +20,49 @@
 #' `lambda` here plays the role of \eqn{\lambda^{(k)}} in the M-step of
 #' Algorithm 1 of Oliveira et al. (2026) (their Equation 8) -- the penalty
 #' passed directly to [glmnet::glmnet()]. Unlike their Algorithm 1, `lambda`
-#' is now fixed for the duration of one call rather than re-selected by
-#' cross-validation at every EM iteration; see [EMLasso_BIC_Search()] and
-#' `NEWS.md` for how this package selects it instead. Following Equation 1
-#' of the same paper, no intercept is fit by default (see `intercept`).
-#'
-#' @references
-#' Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
-#' for regularization problems in high-dimensional linear mixed-effects
-#' models. *Statistical Methods in Medical Research*, 35(2), 240-254.
-#' \doi{10.1177/09622802251399913}
+#' is fixed for the duration of one call rather than re-selected by
+#' cross-validation at every EM iteration; see [EMLMLasso()] and `NEWS.md`
+#' for how this package selects it instead. Following Equation 1 of the same
+#' paper, no intercept is fit by default (see `intercept`).
 #'
 #' @param data a data.frame containing all variables referenced by
 #'   `formFixed`, `formRandom` and `groupVar`.
-#' @param formFixed two-sided formula for the fixed effects, e.g. `y ~ x1 + x2`.
-#'   `y ~ .` is also accepted, meaning every other column of `data` is a
-#'   fixed-effect candidate except the response and `groupVar` itself.
+#' @param formFixed two-sided formula for the fixed effects, already resolved
+#'   (no `y ~ .` shorthand -- that is expanded by [EMLMLasso()] before this is
+#'   called).
 #' @param groupVar character string naming the subject/cluster variable in `data`.
-#' @param formRandom one-sided formula for the random effects, e.g. `~1`
-#'   (random intercept, the default) or `~time` (random intercept and slope).
+#' @param formRandom one-sided formula for the random effects.
 #' @param lambda a single non-negative penalty value.
 #' @param intercept if `TRUE`, force an intercept into the fixed-effects
-#'   design matrix; if `FALSE` (the default), force it out. This always wins
-#'   over whatever `formFixed` itself implies -- `y ~ x1 + x2` and
-#'   `y ~ x1 + x2 - 1` are treated identically.
+#'   design matrix; if `FALSE` (the default), force it out.
 #' @param precision convergence tolerance on the Euclidean distance between
-#'   successive parameter vectors (beta, sigma2, D). Default `1e-6`.
-#' @param MaxIter maximum number of EM iterations. Default `200`.
+#'   successive parameter vectors (beta, sigma2, D).
+#' @param MaxIter maximum number of EM iterations.
 #' @param penalty_factor optional vector of per-coefficient penalty
 #'   multipliers, in the same order as the columns of the fixed-effects
-#'   design matrix (see [stats::model.matrix()] applied to `formFixed`). If
-#'   `NULL` (the default), all coefficients are penalized equally except an
-#'   intercept, if present, which is left unpenalized. Set an entry to `0`
-#'   to force a coefficient to stay in the model.
-#' @param standardize_x if `TRUE` (the default), each fixed-effect covariate
-#'   (other than an intercept, if `formFixed` includes one) is scaled to
-#'   unit variance once before fitting, and coefficients are converted back
-#'   to the original scale of `x` before being returned -- `coef()`,
-#'   `fitted()`, etc. are unaffected by this option. This is
-#'   similar to what `glmnet::glmnet()`'s own default
-#'   (`standardize = TRUE`) already does internally at every call, but
-#'   doing it once, up front, avoids recomputing it at every M-step of every
-#'   EM iteration, and gives noticeably better numerical conditioning for
-#'   many correlated, high-dimensional covariates. Set to `FALSE` to fit on
-#'   the original scale of `x` instead (relying only on glmnet's own default
-#'   internal standardization, recomputed every M-step).
+#'   design matrix. If `NULL`, all coefficients are penalized equally except
+#'   an intercept, if present, which is left unpenalized.
+#' @param standardize_x if `TRUE`, each fixed-effect covariate (other than an
+#'   intercept, if present) is scaled to unit variance once before fitting,
+#'   and coefficients are converted back to the original scale of `x` before
+#'   being returned.
 #' @param refit if `TRUE`, after the lasso fit converges, also fits an
 #'   ordinary (unpenalized) `lme4::lmer()` model on just the covariates the
 #'   lasso left non-zero (same random-effects structure), to correct the
 #'   shrinkage bias lasso point estimates always carry. Requires the `lme4`
-#'   package. **The refit's own standard errors, p-values and confidence
-#'   intervals must not be used or reported** as they treat the selected
-#'   covariate set as fixed in advance, when it was in fact chosen using
-#'   this same data, so they do not account for that selection step and
-#'   understate the true uncertainty (classic post-selection inference).
-#'   The original lasso fit (`coefficients`, `AIC`, `BIC`,
-#'   etc.) is always kept unchanged alongside it. Default `FALSE`.
+#'   package.
 #' @param verbose if `TRUE`, prints one progress line every 10 iterations.
-#'   Defaults to `interactive()`.
 #'
-#' @return An object of class `"EMLasso_LMM"`, which is a list with elements:
-#'   \describe{
-#'     \item{coefficients}{named vector of estimated fixed-effects coefficients.}
-#'     \item{sigma2}{estimated residual variance.}
-#'     \item{D}{estimated random-effects covariance matrix.}
-#'     \item{ranef}{matrix of estimated (empirical Bayes) random effects, one row per group.}
-#'     \item{lambda}{the penalty value used.}
-#'     \item{loglik}{the observed-data log-likelihood at each iteration.}
-#'     \item{AIC, BIC}{information criteria based on the number of non-zero coefficients.}
-#'     \item{iter}{number of EM iterations performed.}
-#'     \item{converged}{whether the EM algorithm reached `precision` and every
-#'       M-step's internal `glmnet::glmnet()` lasso fit itself converged
-#'       (see `glmnet_converged`). `FALSE` if either failed.}
-#'     \item{glmnet_converged}{whether every M-step's `glmnet::glmnet()` call
-#'       converged within its iteration cap. Coordinate descent can fail to
-#'       converge for very small `lambda` combined with many covariates; when
-#'       that happens here, the fit is stopped and the last iteration that
-#'       did converge is returned instead of one corrupted by glmnet's
-#'       fallback empty-model result, and a warning is issued. `FALSE` means
-#'       this happened, and the fit at this `lambda` should not be trusted or
-#'       compared to others without addressing it (e.g. a coarser lambda
-#'       grid).}
-#'     \item{x, z, y, nj, groups}{the design matrices/response/group sizes used to fit the model.}
-#'     \item{call, formFixed, formRandom, groupVar}{the matched call and model specification.}
-#'     \item{refit_fit}{if `refit = TRUE`, the `merMod` object from the
-#'       post-selection `lme4::lmer()` refit (`NULL` if it failed -- see
-#'       `refit`); absent entirely if `refit = FALSE`.}
-#'     \item{refit_coefficients}{if `refit = TRUE`, named vector of refit
-#'       fixed-effect point estimates, same names/order as `coefficients`,
-#'       `NA` for covariates the lasso fit did not select (not `0` -- they
-#'       were excluded from the refit model entirely, not estimated at
-#'       zero). Access via `coef(fit, refit = TRUE)`.}
-#'     \item{refit_singular}{if `refit = TRUE`, whether `lme4::isSingular()`
-#'       flagged the refit as a boundary (singular) random-effects fit.}
-#'   }
-#'
-#' @seealso [EMLasso_BIC_Search()] to select `lambda` automatically.
-#'
-#' @examples
-#' set.seed(1)
-#' n <- 30; nj1 <- 4; p <- 5; pstar <- 2
-#' dat <- simulate_lasso_lmm(n = n, nj = nj1, p = p, pstar = pstar, seed = 1)
-#' fixedForm <- stats::as.formula(paste("y ~", paste0("x", seq_len(p), collapse = " + ")))
-#' fit <- EMLasso_LMM(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
-#'                    lambda = 0.1, MaxIter = 50, verbose = FALSE)
-#' fit
-#' coef(fit)
-#'
-#' @export
+#' @return a plain list with elements `coefficients`, `sigma2`, `D`, `ranef`,
+#'   `lambda`, `penalty_factor`, `loglik`, `AIC`, `BIC`, `npar`, `iter`,
+#'   `converged`, `glmnet_converged`, `n`, `N`, `x`, `z`, `y`, `nj`, `groups`,
+#'   `call`, `formFixed`, `formRandom`, `groupVar`, and, if `refit = TRUE`,
+#'   `refit_fit`, `refit_coefficients`, `refit_formula`, `refit_singular` --
+#'   see [EMLMLasso()]'s `@return` for what each of these means; this
+#'   internal engine's output becomes exactly that user-facing object's
+#'   fields when a single `lambda` is requested, or `best_model`'s fields
+#'   when it is called from a BIC search.
+#' @noRd
 EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
                          intercept = FALSE, precision = 1e-6, MaxIter = 200,
                          penalty_factor = NULL, standardize_x = TRUE,
@@ -277,7 +215,6 @@ EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
     call = cl, formFixed = dp$formFixed,
     formRandom = dp$formRandom, groupVar = groupVar
   )
-  class(obj) <- "EMLasso_LMM"
 
   if (isTRUE(refit)) {
     refit_res <- refit_lmm_impl(obj)
@@ -288,110 +225,4 @@ EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
   }
 
   obj
-}
-
-#' @export
-print.EMLasso_LMM <- function(x, digits = 4, ...) {
-  cat("EM algorithm for lasso-penalized linear mixed models\n")
-  cat("Call:\n")
-  print(x$call)
-  active <- x$coefficients[x$coefficients != 0]
-  cat("\nlambda:", signif(x$lambda, digits),
-      " | active covariates:", length(active), "of", length(x$coefficients), "\n")
-  cat("\nFixed effects (non-zero only):\n")
-  if (length(active) > 0) print(round(active, digits)) else cat("  (none)\n")
-  cat("\nRandom effects covariance (D):\n")
-  print(round(x$D, digits))
-  cat("\nResidual variance:", round(x$sigma2, digits), "\n")
-  cat("logLik:", round(utils::tail(x$loglik, 1), digits),
-      " AIC:", round(x$AIC, digits), " BIC:", round(x$BIC, digits), "\n")
-  cat("EM iterations:", x$iter, if (!x$converged) "(did not converge)" else "", "\n")
-  if (!is.null(x$refit_coefficients)) {
-    refit_active <- x$refit_coefficients[!is.na(x$refit_coefficients)]
-    cat("\nPost-selection refit (unpenalized lme4::lmer(), point estimates only --\n")
-    cat("do NOT use its SEs/p-values/CIs, they ignore the selection step):\n")
-    print(round(refit_active, digits))
-    if (isTRUE(x$refit_singular)) cat("(refit is singular; treat with extra caution)\n")
-  }
-  invisible(x)
-}
-
-#' @export
-summary.EMLasso_LMM <- function(object, digits = 4, ...) {
-  active <- object$coefficients[object$coefficients != 0]
-  cat("EM algorithm for lasso-penalized linear mixed models\n")
-  cat("Call:\n"); print(object$call)
-  cat("\nNumber of groups:", object$n, " | total observations:", object$N, "\n")
-  cat("lambda:", signif(object$lambda, digits), "\n\n")
-  cat("Selected fixed effects (", length(active), "of", length(object$coefficients),
-      "non-zero):\n")
-  if (length(active) > 0) print(round(active, digits)) else cat("  (none)\n")
-  cat("\nShrunk-to-zero covariates:",
-      paste(names(object$coefficients)[object$coefficients == 0], collapse = ", "), "\n")
-  cat("\nRandom effects covariance (D):\n"); print(round(object$D, digits))
-  cat("Residual variance:", round(object$sigma2, digits), "\n")
-  cat("\nlogLik:", round(utils::tail(object$loglik, 1), digits),
-      " AIC:", round(object$AIC, digits), " BIC:", round(object$BIC, digits),
-      " (", object$npar, "effective parameters )\n")
-  if (!is.null(object$refit_coefficients)) {
-    refit_active <- object$refit_coefficients[!is.na(object$refit_coefficients)]
-    cat("\nPost-selection refit (unpenalized lme4::lmer() on the selected covariates):\n")
-    print(round(refit_active, digits))
-    cat("Point estimates only -- this refit's SEs/p-values/CIs do not account for\n")
-    cat("the variable-selection step and must not be used for inference.\n")
-    if (isTRUE(object$refit_singular)) cat("(refit is singular; treat with extra caution)\n")
-  }
-  invisible(object)
-}
-
-#' Extract coefficients from an `EMLasso_LMM` (or `EMLasso_BIC_Search`) fit
-#'
-#' @param object an `"EMLasso_LMM"` object.
-#' @param refit if `TRUE`, return values from the post-selection
-#'   `lme4::lmer()` refit instead of the lasso fit's (see the `refit`
-#'   argument to [EMLasso_LMM()]; the fit/search must have been created with
-#'   `refit = TRUE`) -- for `coef()`, its fixed-effect point estimates (`NA`
-#'   for covariates the lasso did not select); for `fitted()`, its fitted
-#'   values (fixed and random effects combined); for `residuals()`, `y`
-#'   minus those fitted values. Default `FALSE`.
-#' @param ... unused.
-#' @export
-coef.EMLasso_LMM <- function(object, refit = FALSE, ...) {
-  if (isTRUE(refit)) {
-    if (is.null(object$refit_coefficients)) {
-      stop("This fit does not have a refit attached: call EMLasso_LMM() (or ",
-           "EMLasso_BIC_Search()) with `refit = TRUE` first.", call. = FALSE)
-    }
-    return(object$refit_coefficients)
-  }
-  object$coefficients
-}
-
-#' @rdname coef.EMLasso_LMM
-#' @export
-fitted.EMLasso_LMM <- function(object, refit = FALSE, ...) {
-  if (isTRUE(refit)) {
-    if (is.null(object$refit_fit)) {
-      stop("This fit does not have a refit attached: call EMLasso_LMM() (or ",
-           "EMLasso_BIC_Search()) with `refit = TRUE` first.", call. = FALSE)
-    }
-    return(stats::fitted(object$refit_fit))
-  }
-  bmat <- t(object$ranef)
-  nj <- object$nj; n <- length(nj)
-  end_indices <- cumsum(nj)
-  start_indices <- c(1, end_indices[-n] + 1)
-  yhat <- numeric(sum(nj))
-  for (j in seq_len(n)) {
-    idx <- start_indices[j]:end_indices[j]
-    yhat[idx] <- object$x[idx, , drop = FALSE] %*% object$coefficients +
-      object$z[idx, , drop = FALSE] %*% bmat[, j]
-  }
-  yhat
-}
-
-#' @rdname coef.EMLasso_LMM
-#' @export
-residuals.EMLasso_LMM <- function(object, refit = FALSE, ...) {
-  object$y - stats::fitted(object, refit = refit)
 }

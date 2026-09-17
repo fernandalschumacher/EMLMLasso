@@ -27,13 +27,14 @@ at each E-step; the fixed effects are updated at each M-step with a
 coordinate-descent lasso fit (`glmnet::glmnet()`) on the random-effects-
 adjusted response.
 
-Two functions do the fitting:
+One function, `EMLMLasso()`, does the fitting, and what `lambda` is decides
+the mode:
 
-* `EMLasso_LMM()` fits the model at a single, user-supplied `lambda`.
-* `EMLasso_BIC_Search()` fits the model over a data-driven grid of `lambda`
-  values and selects the one that minimizes BIC. This is the recommended
-  entry point for most uses, since choosing `lambda` by hand rarely gives
-  the best model.
+* leaving `lambda` as `NULL` (the default) or passing a vector of candidate
+  values fits the model over a grid and selects the one that minimizes BIC.
+  This is the recommended entry point for most uses, since choosing
+  `lambda` by hand rarely gives the best model.
+* passing a single number fits the model at just that `lambda`, no search.
 
 ## Simulating example data
 
@@ -61,8 +62,8 @@ includes all ten covariates, and `formRandom = ~ time` requests a random
 intercept and a random slope on `time` (the true data-generating structure).
 
 ```{r single-lambda}
-fit <- EMLasso_LMM(dat, formFixed = y ~ ., groupVar = "id", formRandom = ~time,
-                   lambda = 0.15, verbose = FALSE)
+fit <- EMLMLasso(dat, formFixed = y ~ ., groupVar = "id", formRandom = ~time,
+                 lambda = 0.15, verbose = FALSE)
 fit
 ```
 
@@ -74,13 +75,13 @@ coef(fit)
 
 ## Selecting lambda by BIC
 
-In practice, `lambda` is rarely known in advance. `EMLasso_BIC_Search()`
-fits the model across a grid of lambda values (sized by `n_lambdas`) and
-reports the one with the lowest BIC.
+In practice, `lambda` is rarely known in advance. Leaving it as `NULL`
+fits the model across a data-driven grid of lambda values (sized by
+`n_lambdas`) and reports the one with the lowest BIC.
 
 ```{r bic-search}
-search <- EMLasso_BIC_Search(dat, formFixed = y ~ ., groupVar = "id", formRandom = ~time,
-                             n_lambdas = 15)
+search <- EMLMLasso(dat, formFixed = y ~ ., groupVar = "id", formRandom = ~time,
+                    n_lambdas = 15)
 search
 ```
 
@@ -108,8 +109,8 @@ summary(search)
 
 The covariance for cluster/subject $i$ is $\Psi_i = Z_i D Z_i' + \sigma^2 I$, 
 with $b_i \sim N(0, D)$ independent of the residual errors. 
-`EMLasso_LMM()` and `EMLasso_BIC_Search()` assume Gaussian random effects and errors, and
-conditional independence within a cluster given the random effects.
+`EMLMLasso()` assumes Gaussian random effects and errors, and conditional
+independence within a cluster given the random effects.
 
 ## A real-data example: riboflavin production
 

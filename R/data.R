@@ -35,7 +35,7 @@
 #' and other packages built on this dataset), so that
 #' results here are directly comparable to the paper's own Table 5 and
 #' fitting is fast. See \code{vignette("EMLMLasso-riboflavin")} for a worked
-#' example fitting `EMLasso_BIC_Search()` to it.
+#' example fitting `EMLMLasso()` to it.
 #'
 #' @references
 #' Oliveira DCR, Schumacher FL, Lachos VH (2026). "The use of the EM

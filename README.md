@@ -19,15 +19,16 @@ library(EMLMLasso)
 dat <- simulate_lasso_lmm(n = 40, nj = 5, p = 10, pstar = 3, seed = 2026)
 fixedForm <- as.formula(paste("y ~", paste0("x", 1:10, collapse = " + ")))
 
-# fit at a single lambda
-fit <- EMLasso_LMM(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
-                    lambda = 0.15)
-
-# or select lambda by BIC over a data-driven grid (recommended)
-search <- EMLasso_BIC_Search(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time)
+# select lambda by BIC over a data-driven grid (the default, and the
+# recommended way to call this for most uses)
+search <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time)
 search
 coef(search)
 plot(search)
+
+# or fit a single lambda directly, by passing one in
+fit <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+                  lambda = 0.15)
 ```
 
 See `vignette("EMLMLasso-intro")` for a full walkthrough, and `NEWS.md` for

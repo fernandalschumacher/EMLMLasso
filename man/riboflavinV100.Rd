@@ -49,7 +49,7 @@ empirical variance across these 71 observations -- the same
 and other packages built on this dataset), so that
 results here are directly comparable to the paper's own Table 5 and
 fitting is fast. See \code{vignette("EMLMLasso-riboflavin")} for a worked
-example fitting \code{EMLasso_BIC_Search()} to it.
+example fitting \code{EMLMLasso()} to it.
 }
 \examples{
 data(riboflavinV100)

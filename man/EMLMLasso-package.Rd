@@ -2,15 +2,15 @@
 % Please edit documentation in R/EMLMLasso-package.R
 \docType{package}
 \name{EMLMLasso-package}
-\alias{EMLMLasso}
 \alias{EMLMLasso-package}
 \title{EMLMLasso: EM Algorithm for Lasso-Penalized Linear Mixed Models}
 \description{
 Fits linear mixed models with a lasso penalty on the fixed effects, for
-clustered/longitudinal data, via an EM algorithm. See \code{\link[=EMLasso_LMM]{EMLasso_LMM()}} to
-fit a single penalty value and \code{\link[=EMLasso_BIC_Search]{EMLasso_BIC_Search()}} to select the
-penalty by BIC over a data-driven grid. \code{\link[=simulate_lasso_lmm]{simulate_lasso_lmm()}} generates
-example data with a sparse true fixed-effects vector.
+clustered/longitudinal data, via an EM algorithm. See \code{\link[=EMLMLasso]{EMLMLasso()}}, the
+package's single entry point: pass a single \code{lambda} to fit one penalty
+value directly, or leave it \code{NULL} (or supply a vector) to search a grid
+and select by BIC. \code{\link[=simulate_lasso_lmm]{simulate_lasso_lmm()}} generates example data with a
+sparse true fixed-effects vector.
 }
 \references{
 Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
@@ -34,7 +34,7 @@ Authors:
   \item Fernanda Lang Schumacher \email{fernandalschumacher@gmail.com}
   \item Daniela C.R. Oliveira
   \item Victor H. Lachos
-  \item Marcos Santos de Oliveira \email{mso@ufsj.edu.br}
+  \item Marcos Santos de Oliveira
 }
 
 }

@@ -54,9 +54,9 @@ selected, and reports those as the coefficients below. This is a
 **point-estimate correction only** -- the refit's standard errors,
 p-values and confidence intervals are not valid inference, because the
 covariate set was chosen using the same data, and ignoring that selection
-step would understate their uncertainty. `EMLasso_LMM()`/
-`EMLasso_BIC_Search()` never report refit-based inferential statistics for
-this reason; only point estimates are exposed.
+step would understate their uncertainty. `EMLMLasso()` never reports
+refit-based inferential statistics for this reason; only point estimates
+are exposed.
 
 ```{r bic-search}
 genes <- setdiff(names(riboflavinV100), c("strain", "time", "y"))
@@ -66,8 +66,8 @@ riboflavinV100_std <- riboflavinV100
 riboflavinV100_std$y <- as.numeric(scale(riboflavinV100$y))
 
 set.seed(2026)
-search <- EMLasso_BIC_Search(riboflavinV100_std, formFixed = fixedForm, groupVar = "strain",
-                             formRandom = ~ time, MaxIter = 50, refit = TRUE)
+search <- EMLMLasso(riboflavinV100_std, formFixed = fixedForm, groupVar = "strain",
+                    formRandom = ~ time, MaxIter = 50, refit = TRUE)
 ```
 
 ## Results
