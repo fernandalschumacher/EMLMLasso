@@ -143,7 +143,7 @@ E-step, random effects are integrated out in closed form; at each M-step,
 the fixed effects are updated by a coordinate-descent lasso fit
 (\code{\link[glmnet:glmnet]{glmnet::glmnet()}}) on the random-effects-adjusted response, and the
 variance components are updated in closed form). This is the package's main
-function and the argument \code{lambda} will decides whether it fits one model
+function and the argument \code{lambda} decides whether it fits one model
 or searches a grid and selects by BIC.
 }
 \details{
