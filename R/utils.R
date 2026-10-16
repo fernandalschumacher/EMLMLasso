@@ -141,14 +141,14 @@ default_penalty_factor <- function(x) {
 #' its standard errors/p-values/confidence intervals are **not** valid
 #' inference: they treat the selected covariate set as fixed in advance,
 #' when it was in fact chosen using the same data (see `refit` in
-#' [EMLasso_LMM()] for the caveat this is meant to surface to callers).
+#' [EMLMLasso()] for the caveat this is meant to surface to callers).
 #'
 #' Building the refit data assumes `formFixed`/`formRandom` use simple,
 #' untransformed variable names (as in every example in this package) --
 #' factors, interactions or transformations in either formula are not
 #' reconstructed from the stored design matrices and may not refit correctly.
 #'
-#' @param object a fitted `"EMLasso_LMM"` object.
+#' @param object a fitted model, as the list built by the internal `EMLasso_LMM()` engine.
 #' @return a list with `refit_fit` (the fitted `merMod` object, or `NULL` if
 #'   the refit failed), `refit_coefficients` (named numeric vector, same
 #'   names/order as `object$coefficients`, `NA` for any covariate the lasso
