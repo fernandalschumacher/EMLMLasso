@@ -12,7 +12,7 @@ Description: Fits linear mixed models with a lasso penalty on the fixed-effects
     integrated out at each E-step and the fixed-effects update is solved with a
     coordinate-descent lasso ('glmnet'), so the same penalized-likelihood machinery
     used for ordinary linear models extends naturally to clustered/longitudinal data.
-    'EMLasso_BIC_Search()' fits the model over a data-driven grid of penalty values
+    By default, 'EMLMLasso()' fits the model over a data-driven grid of penalty values
     and selects the tuning parameter by Bayesian Information Criterion, avoiding the
     heavier cross-validation loop of earlier implementations. Methods described in
     Oliveira, Schumacher, and Lachos (2026) <doi:10.1177/09622802251399913>.

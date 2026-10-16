@@ -6,7 +6,7 @@
 #' the fixed effects are updated by a coordinate-descent lasso fit
 #' ([glmnet::glmnet()]) on the random-effects-adjusted response, and the
 #' variance components are updated in closed form). This is the package's main 
-#' function and the argument `lambda` will decides whether it fits one model
+#' function and the argument `lambda` decides whether it fits one model
 #' or searches a grid and selects by BIC.
 #'
 #' Following Oliveira et al. (2026), the model is
