@@ -60,8 +60,8 @@ test_that("EMLMLasso deduplicates and sorts a user-supplied lambda vector", {
   dat <- simulate_lasso_lmm(n = 30, nj = 4, p = 4, pstar = 1, seed = 9)
   fixedForm <- as.formula(paste("y ~", paste0("x", 1:4, collapse = " + ")))
   search <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
-                      lambda = c(0.1, 0.5, 0.1, 0.3), MaxIter = 100, verbose = FALSE)
-  expect_equal(search$lambda_grid, c(0.5, 0.3, 0.1)) # unique, decreasing
+                      lambda = c(0.01, 0.5, 0.01, 0.1), MaxIter = 100, verbose = FALSE)
+  expect_equal(search$lambda_grid, c(0.5, 0.1, 0.01)) # unique, decreasing
 })
 
 test_that("EMLMLasso validates lambda", {
