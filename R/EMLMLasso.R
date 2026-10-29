@@ -283,6 +283,14 @@ summary.EMLMLasso <- function(object, digits = 4, ...) {
 #'   values (fixed and random effects combined); for `residuals()`, `y`
 #'   minus those fitted values. Default `FALSE`.
 #' @param ... unused.
+#' @return For `coef()`, a named numeric vector of fixed-effect estimates,
+#'   one per column of the fixed-effects design matrix (including the
+#'   intercept when `intercept = TRUE` in [EMLMLasso()]); covariates shrunk
+#'   out by the lasso are exactly `0`, or `NA` when `refit = TRUE`.
+#'   For `fitted()` and `residuals()`, a numeric vector of length equal to
+#'   the total number of observations, in the same order as the stored
+#'   response `y` (observations grouped by `groupVar`), with fitted values
+#'   combining the fixed effects and the predicted random effects.
 #' @export
 coef.EMLMLasso <- function(object, refit = FALSE, ...) {
   if (isTRUE(refit)) {
@@ -333,6 +341,9 @@ residuals.EMLMLasso <- function(object, refit = FALSE, ...) {
 #'
 #' @param x an `"EMLMLasso"` object.
 #' @param ... further arguments passed to [graphics::plot()].
+#' @return Invisibly returns `x`, the input `"EMLMLasso"` object, unchanged.
+#'   Called for its side effect of plotting BIC against the lambda grid, with
+#'   the selected lambda highlighted in red.
 #' @export
 plot.EMLMLasso <- function(x, ...) {
   if (!isTRUE(x$search_performed)) {

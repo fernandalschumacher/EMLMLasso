@@ -11,6 +11,11 @@
 
 \item{...}{further arguments passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
+\value{
+Invisibly returns \code{x}, the input \code{"EMLMLasso"} object, unchanged.
+Called for its side effect of plotting BIC against the lambda grid, with
+the selected lambda highlighted in red.
+}
 \description{
 Only applicable to an \code{"EMLMLasso"} object created with a BIC search
 (\code{lambda = NULL} or a vector of candidate values, the default) -- errors

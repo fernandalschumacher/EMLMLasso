@@ -1,5 +1,11 @@
 # EMLMLasso 0.1.0
 
+## CRAN resubmission
+
+* Documented the return values of `coef()`/`fitted()`/`residuals()` and
+  `plot()` methods for `"EMLMLasso"` objects.
+* Removed single quotes around function names in DESCRIPTION.
+
 ## Combining functions as `EMLMLasso()`
 
 * `EMLasso_LMM()` and `EMLasso_BIC_Search()` are replaced by a single

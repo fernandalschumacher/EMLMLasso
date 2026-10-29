@@ -25,6 +25,16 @@ minus those fitted values. Default \code{FALSE}.}
 
 \item{...}{unused.}
 }
+\value{
+For \code{coef()}, a named numeric vector of fixed-effect estimates,
+one per column of the fixed-effects design matrix (including the
+intercept when \code{intercept = TRUE} in \code{\link[=EMLMLasso]{EMLMLasso()}}); covariates shrunk
+out by the lasso are exactly \code{0}, or \code{NA} when \code{refit = TRUE}.
+For \code{fitted()} and \code{residuals()}, a numeric vector of length equal to
+the total number of observations, in the same order as the stored
+response \code{y} (observations grouped by \code{groupVar}), with fitted values
+combining the fixed effects and the predicted random effects.
+}
 \description{
 Extract coefficients, fitted values or residuals from an \code{EMLMLasso} fit
 }
