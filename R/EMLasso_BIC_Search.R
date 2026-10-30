@@ -8,7 +8,7 @@
 #' via `lambda_grid`) and selects the value that minimizes the Bayesian
 #' Information Criterion (BIC).
 #'
-#' @param data,formFixed,groupVar,formRandom,intercept,precision,MaxIter,penalty_factor,standardize_x,refit,verbose
+#' @param data,formFixed,groupVar,formRandom,intercept,center,precision,MaxIter,penalty_factor,standardize_x,refit,verbose
 #'   passed straight through to the internal single-lambda engine at every
 #'   grid point -- see [EMLMLasso()] for what each means.
 #' @param n_lambdas number of `lambda` values in the data-driven grid (as in
@@ -29,7 +29,7 @@
 #'   means in the unified return object built from these.
 #' @noRd
 EMLasso_BIC_Search <- function(data, formFixed, groupVar, formRandom = ~1,
-                                intercept = FALSE, n_lambdas = 30,
+                                intercept = FALSE, center = TRUE, n_lambdas = 30,
                                 lambda_min_ratio = 0.001,
                                 precision = 1e-4, MaxIter = 200,
                                 penalty_factor = NULL, standardize_x = TRUE,
@@ -80,7 +80,8 @@ EMLasso_BIC_Search <- function(data, formFixed, groupVar, formRandom = ~1,
 
     fit <- EMLasso_LMM(data = data, formFixed = formFixed, groupVar = groupVar,
                        formRandom = formRandom, lambda = current_lambda,
-                       intercept = intercept, precision = precision, MaxIter = MaxIter,
+                       intercept = intercept, center = center,
+                       precision = precision, MaxIter = MaxIter,
                        penalty_factor = penalty_factor, standardize_x = standardize_x,
                        verbose = verbose)
 

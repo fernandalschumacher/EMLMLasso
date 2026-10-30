@@ -18,20 +18,22 @@ simulate_lasso_lmm(
 \arguments{
 \item{n}{number of subjects/clusters.}
 
-\item{nj}{number of observations per subject (balanced design).}
+\item{nj}{number of observations per subject, \eqn{n_i} in Oliveira et
+al. (2026) (balanced design).}
 
 \item{p}{total number of fixed-effect covariates.}
 
 \item{pstar}{number of covariates with a non-zero true coefficient
 (\code{beta_value}); the remaining \code{p - pstar} have a true coefficient of 0.
-Must be \verb{<= p}.}
+Must be \verb{<= p} (\eqn{p^*} in Oliveira et al. 2026).}
 
 \item{beta_value}{the common value used for the non-zero true coefficients.}
 
 \item{sigmae}{true residual variance.}
 
 \item{D}{true 2x2 covariance matrix of the random intercept and random
-slope on \code{time}. Defaults to \code{matrix(c(1, 0.25, 0.25, 1), 2, 2)}.}
+slope on \code{time}. Defaults to \code{matrix(c(1, 0.25, 0.25, 1), 2, 2)}, the
+matrix in Equation 11 of Oliveira et al. (2026).}
 
 \item{seed}{optional seed passed to \code{\link[=set.seed]{set.seed()}} for reproducibility.}
 }
@@ -43,10 +45,17 @@ Generates balanced longitudinal/clustered data from a linear mixed model
 with \code{p} fixed-effect covariates (only the first \code{pstar} have a non-zero
 coefficient) and a random intercept + random slope on \code{time}. This is the
 data-generating mechanism used in the package examples, tests and
-vignette (adapted from the original simulation study for this method).
+vignette (adapted from Scenario 1 of Oliveira et al. 2026, except that
+covariates are drawn from N(0, 1) rather than N(6, 1) and then centred).
 }
 \examples{
 dat <- simulate_lasso_lmm(n = 20, nj = 4, p = 6, pstar = 2, seed = 42)
 head(dat)
 
+}
+\references{
+Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
+for regularization problems in high-dimensional linear mixed-effects
+models. \emph{Statistical Methods in Medical Research}, 35(2), 240-254.
+\doi{10.1177/09622802251399913}
 }

@@ -42,17 +42,21 @@ test_that("EMLMLasso(lambda = <vector>) searches exactly that grid, no data-driv
   dat <- simulate_lasso_lmm(n = 40, nj = 4, p = 6, pstar = 2, seed = 5)
   fixedForm <- as.formula(paste("y ~", paste0("x", 1:6, collapse = " + ")))
   my_grid <- c(0.5, 0.2, 0.1, 0.05, 0.02)
-  search <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
-                      lambda = my_grid, MaxIter = 150, verbose = FALSE)
+  # (suppressWarnings: BIC may still be decreasing at the small end of this
+  # hand-picked grid; this test is only about how the grid is handled)
+  search <- suppressWarnings(
+    EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+              lambda = my_grid, MaxIter = 150, verbose = FALSE))
 
   expect_true(search$search_performed)
   expect_setequal(search$lambda_grid, my_grid)
   expect_length(search$lambda_grid, length(my_grid))
   expect_true(search$lambda %in% my_grid)
   # n_lambdas/lambda_min_ratio are ignored when lambda is a vector
-  search_again <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
-                            lambda = my_grid, n_lambdas = 50, lambda_min_ratio = 1e-8,
-                            MaxIter = 150, verbose = FALSE)
+  search_again <- suppressWarnings(
+    EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+              lambda = my_grid, n_lambdas = 50, lambda_min_ratio = 1e-8,
+              MaxIter = 150, verbose = FALSE))
   expect_equal(search$lambda_grid, search_again$lambda_grid)
 })
 
@@ -347,4 +351,76 @@ test_that("EMLMLasso shrinks more at the largest grid lambda than at the smalles
   # separate EM fit), but the smallest lambda should not shrink *more* than the largest.
   expect_true(search$active_vars[which.min(search$lambda_grid)] >=
                 search$active_vars[which.max(search$lambda_grid)])
+})
+
+test_that("center = TRUE (default) makes slopes invariant to shifts in y and x", {
+  dat <- simulate_lasso_lmm(n = 40, nj = 5, p = 6, pstar = 2, seed = 11)
+  fixedForm <- as.formula(paste("y ~", paste0("x", 1:6, collapse = " + ")))
+  shifted <- dat
+  shifted$y <- shifted$y + 10
+  for (v in paste0("x", 1:6)) shifted[[v]] <- shifted[[v]] + 5
+
+  fit <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+                   lambda = 0.05, MaxIter = 200, verbose = FALSE)
+  fit_shift <- EMLMLasso(shifted, formFixed = fixedForm, groupVar = "id",
+                         formRandom = ~time, lambda = 0.05, MaxIter = 200,
+                         verbose = FALSE)
+  expect_true(fit$centered)
+  expect_equal(fit_shift$coefficients, fit$coefficients, tolerance = 1e-6)
+  expect_equal(fit_shift$implied_intercept - fit$implied_intercept,
+               10 - 5 * sum(fit$coefficients), tolerance = 1e-6)
+  expect_equal(fitted(fit_shift), fitted(fit) + 10, tolerance = 1e-6)
+  expect_equal(residuals(fit_shift), residuals(fit), tolerance = 1e-6)
+})
+
+test_that("center = FALSE reproduces the uncentred fit, and centring is skipped with an intercept", {
+  dat <- simulate_lasso_lmm(n = 30, nj = 4, p = 5, pstar = 2, seed = 12)
+  fixedForm <- as.formula(paste("y ~", paste0("x", 1:5, collapse = " + ")))
+
+  fit_nc <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+                      lambda = 0.05, center = FALSE, MaxIter = 100, verbose = FALSE)
+  expect_false(fit_nc$centered)
+  expect_equal(fit_nc$implied_intercept, 0)
+
+  fit_int <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+                       lambda = 0.05, intercept = TRUE, MaxIter = 100, verbose = FALSE)
+  expect_false(fit_int$centered)
+  expect_true("(Intercept)" %in% names(coef(fit_int)))
+
+  # a search forwards `center` to every grid fit
+  search <- suppressWarnings(
+    EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+              n_lambdas = 5, center = FALSE, MaxIter = 100, verbose = FALSE))
+  expect_true(all(!vapply(search$all_models, function(m) m$centered, logical(1))))
+})
+
+test_that("the lme4 refit includes an intercept when the data were centred", {
+  skip_if_not_installed("lme4")
+  dat <- simulate_lasso_lmm(n = 30, nj = 5, p = 5, pstar = 2, seed = 13)
+  fixedForm <- as.formula(paste("y ~", paste0("x", 1:5, collapse = " + ")))
+  fit <- suppressWarnings(
+    EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+              lambda = 0.05, MaxIter = 100, refit = TRUE, verbose = FALSE))
+  expect_false(grepl("- 1", paste(deparse(fit$refit_formula), collapse = ""), fixed = TRUE))
+  expect_named(fit$refit_coefficients, names(fit$coefficients))
+  fit_nc <- suppressWarnings(
+    EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+              lambda = 0.05, MaxIter = 100, refit = TRUE, center = FALSE,
+              verbose = FALSE))
+  expect_true(grepl("- 1", paste(deparse(fit_nc$refit_formula), collapse = ""), fixed = TRUE))
+})
+
+test_that("reaching MaxIter is reported as not converged", {
+  dat <- simulate_lasso_lmm(n = 30, nj = 4, p = 5, pstar = 2, seed = 14)
+  fixedForm <- as.formula(paste("y ~", paste0("x", 1:5, collapse = " + ")))
+  fit <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+                   lambda = 0.05, MaxIter = 2, precision = 1e-12, verbose = FALSE)
+  expect_equal(fit$iter, 2)
+  expect_false(fit$converged)
+  expect_output(print(fit), "did not converge")
+
+  fit_ok <- EMLMLasso(dat, formFixed = fixedForm, groupVar = "id", formRandom = ~time,
+                      lambda = 0.05, MaxIter = 500, verbose = FALSE)
+  expect_lt(fit_ok$iter, 500)
+  expect_true(fit_ok$converged)
 })

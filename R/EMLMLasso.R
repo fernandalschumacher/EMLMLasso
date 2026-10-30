@@ -2,7 +2,9 @@
 #'
 #' Fits a linear mixed model with a lasso penalty on the fixed-effects
 #' coefficients, using an Expectation-Maximization (EM) algorithm (at each
-#' E-step, random effects are integrated out in closed form; at each M-step,
+#' E-step, the random effects are treated as missing data and their
+#' conditional means and covariances given the data are computed in closed
+#' form; at each M-step,
 #' the fixed effects are updated by a coordinate-descent lasso fit
 #' ([glmnet::glmnet()]) on the random-effects-adjusted response, and the
 #' variance components are updated in closed form). This is the package's main 
@@ -13,14 +15,13 @@
 #' \eqn{Y_i = X_i \beta + Z_i b_i + \epsilon_i}, with
 #' \eqn{b_i \sim N_q(0, D)} independent of \eqn{\epsilon_i \sim N_{n_i}(0,
 #' \sigma^2 I_{n_i})}, so the covariance for subject/cluster
-#' \eqn{i} is \eqn{\Psi_i = Z_i D Z_i' + \sigma^2 I_{n_i}}. `lambda` plays the
+#' \eqn{i} is \eqn{\Sigma_i = Z_i D Z_i' + \sigma^2 I_{n_i}}. `lambda` plays the
 #' role of \eqn{\lambda^{(k)}} in the M-step of Algorithm 1 of Oliveira et al.
 #' (2026) (their Equation 8) -- the penalty passed directly to
-#' [glmnet::glmnet()]. Unlike Algorithm 1, a `lambda` value is fixed
-#' for the duration of one EM fit rather than re-selected by
-#' cross-validation at every EM iteration; see `NEWS.md` for why this
-#' package selects it by a BIC grid search instead. Following Equation 1 of
-#' the same paper, no intercept is fit by default (see `intercept`).
+#' [glmnet::glmnet()]. Following Equation 1 of the same paper, which
+#' assumes a centred response and centred covariates, no intercept is fit by
+#' default; instead, the response and covariates are centred before fitting
+#' (see `center`).
 #'
 #' @references
 #' Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
@@ -51,7 +52,16 @@
 #' @param intercept if `TRUE`, force an intercept into the fixed-effects
 #'   design matrix; if `FALSE` (the default), force it out. This always wins
 #'   over whatever `formFixed` itself implies -- `y ~ x1 + x2` and
-#'   `y ~ x1 + x2 - 1` are treated identically.
+#'   `y ~ x1 + x2 - 1` are treated identically. See also `center`.
+#' @param center if `TRUE` (the default) and `intercept = FALSE`, the
+#'   response and every fixed-effect covariate are centred at their overall
+#'   means before fitting, matching the centred setting of Equation 1 of
+#'   Oliveira et al. (2026). Coefficients are still returned on the original
+#'   scale, and the implied intercept (\eqn{\bar{y} - \bar{x}'\hat\beta}) is
+#'   stored as `implied_intercept` and included by `fitted()` and
+#'   `residuals()`. Set to `FALSE` to fit the uncentred data without an
+#'   intercept (only sensible if the data are already centred). Ignored when
+#'   `intercept = TRUE`, since the intercept then absorbs the means.
 #' @param n_lambdas number of `lambda` values in the data-driven grid (as in
 #'   [glmnet::glmnet()]'s `nlambda`). Only used when `lambda = NULL`. Default `30`.
 #' @param lambda_min_ratio smallest lambda in the data-driven grid, as a
@@ -70,8 +80,11 @@
 #' @param standardize_x if `TRUE` (the default), each fixed-effect covariate
 #'   (other than an intercept, if `formFixed` includes one) is scaled to
 #'   unit variance once before fitting, and coefficients are converted back
-#'   to the original scale of `x` before being returned -- `coef()`,
-#'   `fitted()`, etc. are unaffected by this option. Set to `FALSE` to fit on
+#'   to the original scale of `x` before being returned. Covariates are
+#'   scaled here but not centred (centring is controlled by `center`).
+#'   Because the penalty is applied on this scale, the selected model can
+#'   depend on this option, but `coef()`, `fitted()` and `residuals()` always
+#'   report results on the original scale of `x`. Set to `FALSE` to fit on
 #'   the original scale of `x` instead (relying only on glmnet's own default
 #'   internal standardization, recomputed every M-step).
 #' @param refit if `TRUE`, once the (selected or only) model is available,
@@ -94,17 +107,27 @@
 #'   \describe{
 #'     \item{coefficients}{named vector of estimated fixed-effects
 #'       coefficients for the selected (or only) model.}
+#'     \item{implied_intercept}{the intercept implied by centring,
+#'       \eqn{\bar{y} - \bar{x}'\hat\beta}, or `0` if the data were not
+#'       centred (see `center`).}
+#'     \item{centered}{whether the response and covariates were centred.}
 #'     \item{sigma2}{estimated residual variance.}
 #'     \item{D}{estimated random-effects covariance matrix.}
 #'     \item{ranef}{matrix of estimated (empirical Bayes) random effects, one row per group.}
 #'     \item{lambda}{the penalty value of the selected (or only) model.}
-#'     \item{loglik}{the observed-data log-likelihood at each iteration, for
+#'     \item{loglik}{the marginal (unpenalized) log-likelihood at each iteration, for
 #'       the selected (or only) model.}
 #'     \item{AIC, BIC}{information criteria for the selected (or only) model.}
+#'     \item{npar}{number of estimated parameters used in AIC and BIC: the
+#'       non-zero fixed effects, plus \eqn{\sigma^2} and the \eqn{q(q+1)/2}
+#'       unique elements of \eqn{D}.}
+#'     \item{n, N}{number of groups and total number of observations.}
+#'     \item{penalty_factor}{the penalty multipliers used.}
 #'     \item{iter}{number of EM iterations performed for the selected (or only) model.}
 #'     \item{converged}{whether the selected (or only) model's EM algorithm
-#'       reached `precision` and its M-steps' `glmnet::glmnet()` fits
-#'       themselves converged (see `glmnet_converged`).}
+#'       reached `precision` within `MaxIter` iterations and its M-steps'
+#'       `glmnet::glmnet()` fits themselves converged (see
+#'       `glmnet_converged`). `FALSE` if `MaxIter` was reached first.}
 #'     \item{glmnet_converged}{whether every M-step of the selected (or
 #'       only) model's `glmnet::glmnet()` calls converged.}
 #'     \item{x, z, y, nj, groups}{the design matrices/response/group sizes used to fit the model.}
@@ -129,13 +152,19 @@
 #'   selected (or only) model -- see the `refit` argument above.
 #'
 #' @details
-#' The BIC grid search (`lambda = NULL` or a vector) replaces an earlier
-#' cross-validation-based selection (`cv.glmnet` on the random-effects-
-#' adjusted response, refit at every EM iteration -- the `While` loop's
-#' "Obtain the optimum value \eqn{\lambda^{(k)}} via cross-validation" step
-#' in Algorithm 1 of Oliveira et al. 2026), which was both much slower and,
-#' in simulations, noticeably less stable than selecting by BIC on a fixed
-#' grid. See `NEWS.md` for details.
+#' This package implements the EMLMLasso algorithm of Oliveira, Schumacher
+#' and Lachos (2026) with modifications. Most notably, the penalty
+#' \eqn{\lambda} is selected by BIC over a grid of candidate values, with
+#' \eqn{\lambda} held fixed within each EM fit, instead of being re-selected by
+#' cross-validation at every EM iteration as in Algorithm 1 of the paper.
+#' Convergence is also assessed on the change in parameter estimates rather
+#' than on the relative change in the penalized log-likelihood. Results may
+#' therefore differ from those reported in the paper.
+#'
+#' Per-iteration cross-validation was dropped because it was slow (one
+#' k-fold cross-validation per EM iteration) and, in simulations, produced a
+#' lambda path that was not monotone in the number of active covariates.
+#' See `NEWS.md` for further details.
 #'
 #' @examples
 #' set.seed(1)
@@ -157,8 +186,8 @@
 #'
 #' @export
 EMLMLasso <- function(data, formFixed, groupVar, formRandom = ~1, lambda = NULL,
-                       intercept = FALSE, n_lambdas = 30, lambda_min_ratio = 0.001,
-                       precision = 1e-4, MaxIter = 200, penalty_factor = NULL,
+                       intercept = FALSE, center = TRUE, n_lambdas = 30,
+                       lambda_min_ratio = 0.001, precision = 1e-4, MaxIter = 200, penalty_factor = NULL,
                        standardize_x = TRUE, refit = FALSE, verbose = interactive()) {
   cl <- match.call()
   if (!is.null(lambda)) {
@@ -177,6 +206,7 @@ EMLMLasso <- function(data, formFixed, groupVar, formRandom = ~1, lambda = NULL,
   if (!search_performed) {
     fit <- EMLasso_LMM(data = data, formFixed = formFixed, groupVar = groupVar,
                         formRandom = formRandom, lambda = lambda, intercept = intercept,
+                        center = center,
                         precision = precision, MaxIter = MaxIter,
                         penalty_factor = penalty_factor, standardize_x = standardize_x,
                         refit = refit, verbose = verbose)
@@ -188,6 +218,7 @@ EMLMLasso <- function(data, formFixed, groupVar, formRandom = ~1, lambda = NULL,
     user_grid <- if (!is.null(lambda)) sort(unique(lambda), decreasing = TRUE) else NULL
     search <- EMLasso_BIC_Search(data = data, formFixed = formFixed, groupVar = groupVar,
                                   formRandom = formRandom, intercept = intercept,
+                                  center = center,
                                   n_lambdas = n_lambdas, lambda_min_ratio = lambda_min_ratio,
                                   precision = precision, MaxIter = MaxIter,
                                   penalty_factor = penalty_factor, standardize_x = standardize_x,
@@ -290,7 +321,8 @@ summary.EMLMLasso <- function(object, digits = 4, ...) {
 #'   For `fitted()` and `residuals()`, a numeric vector of length equal to
 #'   the total number of observations, in the same order as the stored
 #'   response `y` (observations grouped by `groupVar`), with fitted values
-#'   combining the fixed effects and the predicted random effects.
+#'   combining the fixed effects (including `implied_intercept` when the data
+#'   were centred) and the predicted random effects.
 #' @export
 coef.EMLMLasso <- function(object, refit = FALSE, ...) {
   if (isTRUE(refit)) {
@@ -318,9 +350,10 @@ fitted.EMLMLasso <- function(object, refit = FALSE, ...) {
   end_indices <- cumsum(nj)
   start_indices <- c(1, end_indices[-n] + 1)
   yhat <- numeric(sum(nj))
+  a <- if (is.null(object$implied_intercept)) 0 else object$implied_intercept
   for (j in seq_len(n)) {
     idx <- start_indices[j]:end_indices[j]
-    yhat[idx] <- object$x[idx, , drop = FALSE] %*% object$coefficients +
+    yhat[idx] <- a + object$x[idx, , drop = FALSE] %*% object$coefficients +
       object$z[idx, , drop = FALSE] %*% bmat[, j]
   }
   yhat

@@ -18,7 +18,7 @@
 #'
 #' @details
 #' The expression matrix and response are the standard `riboflavin`
-#' dataset (Buhlmann, Kalisch and Meier, 2014), most commonly distributed
+#' dataset (Bühlmann, Kalisch and Meier, 2014), most commonly distributed
 #' via the `hdi` package, which records 71 microarray samples and 4088
 #' gene expression levels but exposes no grouping or time variable. The
 #' original .CEL microarray file names (preserved as that object's row
@@ -31,9 +31,9 @@
 #' Following prior work, genes are filtered to the 100 of largest
 #' empirical variance across these 71 observations -- the same
 #' `riboflavinV100` reduction used by the paper itself
-#' (and by \code{hdi}, \code{DLFM}, \code{qut}, \code{FPCdpca},
-#' and other packages built on this dataset), so that
-#' results here are directly comparable to the paper's own Table 5 and
+#' (following Schelldorfer, Bühlmann and van de Geer, 2011), so that the
+#' analysis setting matches the paper's (results differ from its Table 5
+#' because of the change in \eqn{\lambda} selection; see [EMLMLasso()]) and
 #' fitting is fast. See \code{vignette("EMLMLasso-riboflavin")} for a worked
 #' example fitting `EMLMLasso()` to it.
 #'
@@ -43,9 +43,14 @@
 #' mixed-effects models." *Statistical Methods in Medical Research*,
 #' 35(2), 240-254. \doi{10.1177/09622802251399913}
 #'
-#' Buhlmann P, Kalisch M, Meier L (2014). "High-Dimensional Statistics
+#' Bühlmann P, Kalisch M, Meier L (2014). "High-Dimensional Statistics
 #' with a View Toward Applications in Biology." *Annual Review of
 #' Statistics and Its Application*, 1, 255-278.
+#'
+#' Schelldorfer J, Bühlmann P, van de Geer S (2011). "Estimation for
+#' high-dimensional linear mixed-effects models using
+#' \eqn{\ell_1}-penalization." *Scandinavian Journal of Statistics*, 38(2),
+#' 197-214.
 #'
 #' @source
 #' Derived from the `riboflavin` dataset distributed with the `hdi`

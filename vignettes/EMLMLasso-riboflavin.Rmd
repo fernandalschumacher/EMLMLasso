@@ -22,7 +22,8 @@ library(EMLMLasso)
 ## The data
 
 `riboflavinV100` is a longitudinal version of the well-known riboflavin
-production dataset for *Bacillus subtilis*, reconstructed from the
+production dataset for *Bacillus subtilis* (Bühlmann, Kalisch and Meier,
+2014), reconstructed from the
 metadata in the original microarray file names to reproduce the
 longitudinal structure of the real-data application in Oliveira,
 Schumacher and Lachos (2026, Section 5): 28 strains, each measured 2-4
@@ -40,12 +41,12 @@ columns are gene expression levels -- the same 100-gene reduction used by the pa
 
 ## Fitting
 
-Two data-prep choices are made before fitting: `y` is standardized (mean 0, variance
-1) for numerical stability; and `time` is included as a candidate *fixed*-effect covariate (in
-addition to already being a random slope via `formRandom`), matching
-Eq. 14 of Oliveira et al. (2026). `x` itself is left on its original scale
--- `standardize_x = TRUE` (the default) standardizes it internally and
-reports coefficients back on this original scale.
+Two data-prep choices are made before fitting, both following Section 5 of
+Oliveira et al. (2026). First, the response and all covariates (the 100
+genes and `time`) are standardized to mean 0 and variance 1. Second, `time`
+is included as a candidate *fixed*-effect covariate, in addition to being a
+random slope via `formRandom`, matching the model structure of Eq. 14 of
+the paper. Coefficients are therefore reported on the standardized scale.
 
 We also set `refit = TRUE`. Lasso coefficients are shrunk toward zero by
 construction, which biases them as point estimates even once the right
@@ -55,20 +56,23 @@ selected, and reports those as the coefficients below. This is a
 **point-estimate correction only** -- the refit's standard errors,
 p-values and confidence intervals are not valid inference, because the
 covariate set was chosen using the same data, and ignoring that selection
-step would understate their uncertainty. `EMLMLasso()` never reports
-refit-based inferential statistics for this reason; only point estimates
-are exposed.
+step would understate their uncertainty. `EMLMLasso()` does not print
+or summarize refit-based inferential statistics for this reason; the
+underlying `lme4` fit is available as `refit_fit`, but its inferential
+output should not be used.
 
 ```{r bic-search}
 genes <- setdiff(names(riboflavinV100), c("strain", "time", "y"))
 fixedForm <- as.formula(paste("y ~ time +", paste(genes, collapse = " + ")))
 
 riboflavinV100_std <- riboflavinV100
-riboflavinV100_std$y <- as.numeric(scale(riboflavinV100$y))
+std_vars <- c("y", "time", genes)
+riboflavinV100_std[std_vars] <- lapply(riboflavinV100_std[std_vars],
+                                       function(v) as.numeric(scale(v)))
 
 set.seed(2026)
 search <- EMLMLasso(riboflavinV100_std, formFixed = fixedForm, groupVar = "strain",
-                    formRandom = ~ time, MaxIter = 50, refit = TRUE)
+                    formRandom = ~ time, MaxIter = 500, refit = TRUE)
 ```
 
 ## Results
@@ -81,7 +85,7 @@ search
 plot(search)
 ```
 
-The BIC-optimal model keeps 14 genes plus `time`. The coefficients below
+The BIC-optimal model keeps 22 genes plus `time`. The coefficients below
 are the post-selection refit's point estimates, not the raw (shrunk)
 lasso ones:
 
@@ -91,7 +95,7 @@ sort(abs(b[!is.na(b) & b != 0]), decreasing = TRUE)
 ```
 
 For comparison, the raw lasso estimates the BIC search actually selected
-on (systematically smaller in magnitude, as expected from shrinkage):
+on:
 
 ```{r coef-lasso}
 b_lasso <- coef(search)
@@ -100,17 +104,19 @@ sort(abs(b_lasso[b_lasso != 0]), decreasing = TRUE)
 
 ## Interpretation
 
-BIC dips to a clear interior minimum around `lambda = 0.01` (15 active
-covariates including `time`), rising on both sides of it -- fewer
-covariates selected at larger lambda, and clear overfitting (64 active
-covariates) at the smallest lambda tried. `time` is one of the selected
-coefficients and is *not* shrunk out here.
+BIC is flat over the largest lambda values, where no covariate is
+selected, and changes little until lambda falls to about 0.006. It then
+drops sharply to its minimum at `lambda = 0.005` (23 active covariates: 22
+genes and `time`) and rises again over the next few, smaller values (24 to
+27 active covariates). `time` is selected as a fixed effect, with a negative
+coefficient, consistent with riboflavin production decreasing over time.
 
-The refit's fixed-effect point estimates are, as expected, clearly less
-shrunk than the raw lasso values -- consistent with correcting shrinkage
-bias -- though as always with this procedure, they remain point estimates
-only and nothing about them should be read as valid inference (see the
-caveat above).
+These results differ from Table 5 of Oliveira et al. (2026), which also
+reports 22 selected genes but retains `time` only as a random effect; 11 of
+the 22 genes selected here are among the paper's. The
+difference is expected: the paper selects $\lambda$ by cross-validation at every EM
+iteration, while this package selects it by BIC over a grid (see
+`?EMLMLasso`).
 
 ## References
 
@@ -119,6 +125,6 @@ for regularization problems in high-dimensional linear mixed-effects
 models. *Statistical Methods in Medical Research*, 35(2), 240-254.
 [doi:10.1177/09622802251399913](https://doi.org/10.1177/09622802251399913)
 
-Buhlmann P, Kalisch M, Meier L (2014). High-Dimensional Statistics with a
+Bühlmann P, Kalisch M, Meier L (2014). High-Dimensional Statistics with a
 View Toward Applications in Biology. *Annual Review of Statistics and Its
 Application*, 1, 255-278.

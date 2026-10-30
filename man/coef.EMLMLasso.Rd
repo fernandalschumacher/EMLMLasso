@@ -33,7 +33,8 @@ out by the lasso are exactly \code{0}, or \code{NA} when \code{refit = TRUE}.
 For \code{fitted()} and \code{residuals()}, a numeric vector of length equal to
 the total number of observations, in the same order as the stored
 response \code{y} (observations grouped by \code{groupVar}), with fitted values
-combining the fixed effects and the predicted random effects.
+combining the fixed effects (including \code{implied_intercept} when the data
+were centred) and the predicted random effects.
 }
 \description{
 Extract coefficients, fitted values or residuals from an \code{EMLMLasso} fit

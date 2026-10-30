@@ -32,7 +32,7 @@ Oliveira, Schumacher and Lachos (2026), Section 5.
 }
 \details{
 The expression matrix and response are the standard \code{riboflavin}
-dataset (Buhlmann, Kalisch and Meier, 2014), most commonly distributed
+dataset (Bühlmann, Kalisch and Meier, 2014), most commonly distributed
 via the \code{hdi} package, which records 71 microarray samples and 4088
 gene expression levels but exposes no grouping or time variable. The
 original .CEL microarray file names (preserved as that object's row
@@ -45,9 +45,9 @@ strains, each measured 2-4 times, 71 observations in total.
 Following prior work, genes are filtered to the 100 of largest
 empirical variance across these 71 observations -- the same
 \code{riboflavinV100} reduction used by the paper itself
-(and by \code{hdi}, \code{DLFM}, \code{qut}, \code{FPCdpca},
-and other packages built on this dataset), so that
-results here are directly comparable to the paper's own Table 5 and
+(following Schelldorfer, Bühlmann and van de Geer, 2011), so that the
+analysis setting matches the paper's (results differ from its Table 5
+because of the change in \eqn{\lambda} selection; see \code{\link[=EMLMLasso]{EMLMLasso()}}) and
 fitting is fast. See \code{vignette("EMLMLasso-riboflavin")} for a worked
 example fitting \code{EMLMLasso()} to it.
 }
@@ -63,8 +63,13 @@ algorithm for regularization problems in high-dimensional linear
 mixed-effects models." \emph{Statistical Methods in Medical Research},
 35(2), 240-254. \doi{10.1177/09622802251399913}
 
-Buhlmann P, Kalisch M, Meier L (2014). "High-Dimensional Statistics
+Bühlmann P, Kalisch M, Meier L (2014). "High-Dimensional Statistics
 with a View Toward Applications in Biology." \emph{Annual Review of
 Statistics and Its Application}, 1, 255-278.
+
+Schelldorfer J, Bühlmann P, van de Geer S (2011). "Estimation for
+high-dimensional linear mixed-effects models using
+\eqn{\ell_1}-penalization." \emph{Scandinavian Journal of Statistics}, 38(2),
+197-214.
 }
 \keyword{datasets}

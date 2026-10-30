@@ -2,6 +2,24 @@
 
 ## CRAN resubmission
 
+* New `center` argument to `EMLMLasso()` (default `TRUE`): with
+  `intercept = FALSE` (the default), the response and covariates are now
+  centred before fitting, matching the centred setting assumed by Oliveira
+  et al. (2026). Coefficients stay on the original scale; the implied
+  intercept is returned as `implied_intercept` and used by `fitted()` and
+  `residuals()`, and the `lme4` refit includes an intercept. Use
+  `center = FALSE` for the previous behaviour.
+* Bug fix: a fit that stopped because it reached `MaxIter` was reported as
+  `converged = TRUE`; it is now `FALSE`, and `print()` shows
+  "(did not converge)".
+* Documentation now states that this package modifies the published
+  algorithm (lambda selected by BIC over a grid instead of per-iteration
+  cross-validation; different convergence criterion), and aligns notation
+  with the paper.
+* The riboflavin vignette now standardizes the response and all
+  covariates, as in Section 5 of the paper, and uses `MaxIter = 500` so
+  that the selected fit converges.
+
 * Documented the return values of `coef()`/`fitted()`/`residuals()` and
   `plot()` methods for `"EMLMLasso"` objects.
 * Removed single quotes around function names in DESCRIPTION.

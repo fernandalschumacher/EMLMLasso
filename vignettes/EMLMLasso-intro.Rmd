@@ -22,8 +22,9 @@ library(EMLMLasso)
 
 EMLMLasso fits linear mixed models with a lasso penalty on the fixed-effects
 coefficients, for clustered or longitudinal data, via an
-Expectation-Maximization (EM) algorithm. Random effects are integrated out
-at each E-step; the fixed effects are updated at each M-step with a
+Expectation-Maximization (EM) algorithm. At each E-step, the random effects
+are treated as missing data and replaced by their conditional means and
+covariances; the fixed effects are updated at each M-step with a
 coordinate-descent lasso fit (`glmnet::glmnet()`) on the random-effects-
 adjusted response.
 
@@ -107,7 +108,7 @@ summary(search)
 
 ## A note on the random-effects structure
 
-The covariance for cluster/subject $i$ is $\Psi_i = Z_i D Z_i' + \sigma^2 I$, 
+The covariance for cluster/subject $i$ is $\Sigma_i = Z_i D Z_i' + \sigma^2 I$, 
 with $b_i \sim N(0, D)$ independent of the residual errors. 
 `EMLMLasso()` assumes Gaussian random effects and errors, and conditional
 independence within a cluster given the random effects.
@@ -122,9 +123,15 @@ high-dimensional (`p >> n`) setting. It is worked through separately in
 
 ## Relationship to Oliveira, Schumacher and Lachos (2026)
 
-This package implements the `EMLMLasso` algorithm introduced in Oliveira
-et al. (2026) (full citation below; run `citation("EMLMLasso")` for a
-BibTeX-ready entry).
+This package implements the EMLMLasso algorithm of Oliveira, Schumacher
+and Lachos (2026) with modifications. Most notably, the penalty λ is
+selected by BIC over a grid of candidate values, with λ held fixed within
+each EM fit, instead of being re-selected by cross-validation at every EM
+iteration as in Algorithm 1 of the paper. Convergence is also assessed on
+the change in parameter estimates rather than on the relative change in
+the penalized log-likelihood. Results may therefore differ from those
+reported in the paper. See `?EMLMLasso` for details (full citation below; run
+`citation("EMLMLasso")` for a BibTeX-ready entry).
 
 ### References
 

@@ -4,19 +4,28 @@
 #' with `p` fixed-effect covariates (only the first `pstar` have a non-zero
 #' coefficient) and a random intercept + random slope on `time`. This is the
 #' data-generating mechanism used in the package examples, tests and
-#' vignette (adapted from the original simulation study for this method).
+#' vignette (adapted from Scenario 1 of Oliveira et al. 2026, except that
+#' covariates are drawn from N(0, 1) rather than N(6, 1) and then centred).
 #'
 #' @param n number of subjects/clusters.
-#' @param nj number of observations per subject (balanced design).
+#' @param nj number of observations per subject, \eqn{n_i} in Oliveira et
+#'   al. (2026) (balanced design).
 #' @param p total number of fixed-effect covariates.
 #' @param pstar number of covariates with a non-zero true coefficient
 #'   (`beta_value`); the remaining `p - pstar` have a true coefficient of 0.
-#'   Must be `<= p`.
+#'   Must be `<= p` (\eqn{p^*} in Oliveira et al. 2026).
 #' @param beta_value the common value used for the non-zero true coefficients.
 #' @param sigmae true residual variance.
 #' @param D true 2x2 covariance matrix of the random intercept and random
-#'   slope on `time`. Defaults to `matrix(c(1, 0.25, 0.25, 1), 2, 2)`.
+#'   slope on `time`. Defaults to `matrix(c(1, 0.25, 0.25, 1), 2, 2)`, the
+#'   matrix in Equation 11 of Oliveira et al. (2026).
 #' @param seed optional seed passed to [set.seed()] for reproducibility.
+#'
+#' @references
+#' Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
+#' for regularization problems in high-dimensional linear mixed-effects
+#' models. *Statistical Methods in Medical Research*, 35(2), 240-254.
+#' \doi{10.1177/09622802251399913}
 #'
 #' @return A data.frame with columns `id`, `time`, `y`, and `x1, ..., xp`.
 #'

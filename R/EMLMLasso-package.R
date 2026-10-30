@@ -7,6 +7,15 @@
 #' and select by BIC. [simulate_lasso_lmm()] generates example data with a
 #' sparse true fixed-effects vector.
 #'
+#' This package implements the EMLMLasso algorithm of Oliveira, Schumacher
+#' and Lachos (2026) with modifications. Most notably, the penalty
+#' \eqn{\lambda} is selected by BIC over a grid of candidate values, with
+#' \eqn{\lambda} held fixed within each EM fit, instead of being re-selected by
+#' cross-validation at every EM iteration as in Algorithm 1 of the paper.
+#' Convergence is also assessed on the change in parameter estimates rather
+#' than on the relative change in the penalized log-likelihood. Results may
+#' therefore differ from those reported in the paper.
+#'
 #' @references
 #' Oliveira DCR, Schumacher FL, Lachos VH (2026). The use of the EM algorithm
 #' for regularization problems in high-dimensional linear mixed-effects

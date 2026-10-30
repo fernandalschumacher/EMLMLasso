@@ -173,7 +173,7 @@ refit_lmm_impl <- function(object) {
   rand_rhs <- deparse(object$formRandom[[2]])
   rand_term <- paste0("(", rand_rhs, " | ", object$groupVar, ")")
   fixed_rhs <- if (length(fixed_terms) == 0) "1" else paste(fixed_terms, collapse = " + ")
-  if (!has_intercept) fixed_rhs <- paste(fixed_rhs, "- 1")
+  if (!has_intercept && !isTRUE(object$centered)) fixed_rhs <- paste(fixed_rhs, "- 1")
   refit_formula <- stats::as.formula(paste(resp_name, "~", fixed_rhs, "+", rand_term))
 
   fit <- tryCatch(

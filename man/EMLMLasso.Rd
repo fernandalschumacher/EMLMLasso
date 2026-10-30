@@ -11,6 +11,7 @@ EMLMLasso(
   formRandom = ~1,
   lambda = NULL,
   intercept = FALSE,
+  center = TRUE,
   n_lambdas = 30,
   lambda_min_ratio = 0.001,
   precision = 1e-04,
@@ -50,7 +51,17 @@ BIC, instead of building one automatically -- \code{n_lambdas} and
 \item{intercept}{if \code{TRUE}, force an intercept into the fixed-effects
 design matrix; if \code{FALSE} (the default), force it out. This always wins
 over whatever \code{formFixed} itself implies -- \code{y ~ x1 + x2} and
-\code{y ~ x1 + x2 - 1} are treated identically.}
+\code{y ~ x1 + x2 - 1} are treated identically. See also \code{center}.}
+
+\item{center}{if \code{TRUE} (the default) and \code{intercept = FALSE}, the
+response and every fixed-effect covariate are centred at their overall
+means before fitting, matching the centred setting of Equation 1 of
+Oliveira et al. (2026). Coefficients are still returned on the original
+scale, and the implied intercept (\eqn{\bar{y} - \bar{x}'\hat\beta}) is
+stored as \code{implied_intercept} and included by \code{fitted()} and
+\code{residuals()}. Set to \code{FALSE} to fit the uncentred data without an
+intercept (only sensible if the data are already centred). Ignored when
+\code{intercept = TRUE}, since the intercept then absorbs the means.}
 
 \item{n_lambdas}{number of \code{lambda} values in the data-driven grid (as in
 \code{\link[glmnet:glmnet]{glmnet::glmnet()}}'s \code{nlambda}). Only used when \code{lambda = NULL}. Default \code{30}.}
@@ -75,8 +86,11 @@ to force a coefficient to stay in the model.}
 \item{standardize_x}{if \code{TRUE} (the default), each fixed-effect covariate
 (other than an intercept, if \code{formFixed} includes one) is scaled to
 unit variance once before fitting, and coefficients are converted back
-to the original scale of \code{x} before being returned -- \code{coef()},
-\code{fitted()}, etc. are unaffected by this option. Set to \code{FALSE} to fit on
+to the original scale of \code{x} before being returned. Covariates are
+scaled here but not centred (centring is controlled by \code{center}).
+Because the penalty is applied on this scale, the selected model can
+depend on this option, but \code{coef()}, \code{fitted()} and \code{residuals()} always
+report results on the original scale of \code{x}. Set to \code{FALSE} to fit on
 the original scale of \code{x} instead (relying only on glmnet's own default
 internal standardization, recomputed every M-step).}
 
@@ -102,17 +116,27 @@ An object of class \code{"EMLMLasso"}, a list with elements:
 \describe{
 \item{coefficients}{named vector of estimated fixed-effects
 coefficients for the selected (or only) model.}
+\item{implied_intercept}{the intercept implied by centring,
+\eqn{\bar{y} - \bar{x}'\hat\beta}, or \code{0} if the data were not
+centred (see \code{center}).}
+\item{centered}{whether the response and covariates were centred.}
 \item{sigma2}{estimated residual variance.}
 \item{D}{estimated random-effects covariance matrix.}
 \item{ranef}{matrix of estimated (empirical Bayes) random effects, one row per group.}
 \item{lambda}{the penalty value of the selected (or only) model.}
-\item{loglik}{the observed-data log-likelihood at each iteration, for
+\item{loglik}{the marginal (unpenalized) log-likelihood at each iteration, for
 the selected (or only) model.}
 \item{AIC, BIC}{information criteria for the selected (or only) model.}
+\item{npar}{number of estimated parameters used in AIC and BIC: the
+non-zero fixed effects, plus \eqn{\sigma^2} and the \eqn{q(q+1)/2}
+unique elements of \eqn{D}.}
+\item{n, N}{number of groups and total number of observations.}
+\item{penalty_factor}{the penalty multipliers used.}
 \item{iter}{number of EM iterations performed for the selected (or only) model.}
 \item{converged}{whether the selected (or only) model's EM algorithm
-reached \code{precision} and its M-steps' \code{glmnet::glmnet()} fits
-themselves converged (see \code{glmnet_converged}).}
+reached \code{precision} within \code{MaxIter} iterations and its M-steps'
+\code{glmnet::glmnet()} fits themselves converged (see
+\code{glmnet_converged}). \code{FALSE} if \code{MaxIter} was reached first.}
 \item{glmnet_converged}{whether every M-step of the selected (or
 only) model's \code{glmnet::glmnet()} calls converged.}
 \item{x, z, y, nj, groups}{the design matrices/response/group sizes used to fit the model.}
@@ -139,7 +163,9 @@ selected (or only) model -- see the \code{refit} argument above.
 \description{
 Fits a linear mixed model with a lasso penalty on the fixed-effects
 coefficients, using an Expectation-Maximization (EM) algorithm (at each
-E-step, random effects are integrated out in closed form; at each M-step,
+E-step, the random effects are treated as missing data and their
+conditional means and covariances given the data are computed in closed
+form; at each M-step,
 the fixed effects are updated by a coordinate-descent lasso fit
 (\code{\link[glmnet:glmnet]{glmnet::glmnet()}}) on the random-effects-adjusted response, and the
 variance components are updated in closed form). This is the package's main
@@ -151,22 +177,27 @@ Following Oliveira et al. (2026), the model is
 \eqn{Y_i = X_i \beta + Z_i b_i + \epsilon_i}, with
 \eqn{b_i \sim N_q(0, D)} independent of \eqn{\epsilon_i \sim N_{n_i}(0,
 \sigma^2 I_{n_i})}, so the covariance for subject/cluster
-\eqn{i} is \eqn{\Psi_i = Z_i D Z_i' + \sigma^2 I_{n_i}}. \code{lambda} plays the
+\eqn{i} is \eqn{\Sigma_i = Z_i D Z_i' + \sigma^2 I_{n_i}}. \code{lambda} plays the
 role of \eqn{\lambda^{(k)}} in the M-step of Algorithm 1 of Oliveira et al.
 (2026) (their Equation 8) -- the penalty passed directly to
-\code{\link[glmnet:glmnet]{glmnet::glmnet()}}. Unlike Algorithm 1, a \code{lambda} value is fixed
-for the duration of one EM fit rather than re-selected by
-cross-validation at every EM iteration; see \code{NEWS.md} for why this
-package selects it by a BIC grid search instead. Following Equation 1 of
-the same paper, no intercept is fit by default (see \code{intercept}).
+\code{\link[glmnet:glmnet]{glmnet::glmnet()}}. Following Equation 1 of the same paper, which
+assumes a centred response and centred covariates, no intercept is fit by
+default; instead, the response and covariates are centred before fitting
+(see \code{center}).
 
-The BIC grid search (\code{lambda = NULL} or a vector) replaces an earlier
-cross-validation-based selection (\code{cv.glmnet} on the random-effects-
-adjusted response, refit at every EM iteration -- the \code{While} loop's
-"Obtain the optimum value \eqn{\lambda^{(k)}} via cross-validation" step
-in Algorithm 1 of Oliveira et al. 2026), which was both much slower and,
-in simulations, noticeably less stable than selecting by BIC on a fixed
-grid. See \code{NEWS.md} for details.
+This package implements the EMLMLasso algorithm of Oliveira, Schumacher
+and Lachos (2026) with modifications. Most notably, the penalty
+\eqn{\lambda} is selected by BIC over a grid of candidate values, with
+\eqn{\lambda} held fixed within each EM fit, instead of being re-selected by
+cross-validation at every EM iteration as in Algorithm 1 of the paper.
+Convergence is also assessed on the change in parameter estimates rather
+than on the relative change in the penalized log-likelihood. Results may
+therefore differ from those reported in the paper.
+
+Per-iteration cross-validation was dropped because it was slow (one
+k-fold cross-validation per EM iteration) and, in simulations, produced a
+lambda path that was not monotone in the number of active covariates.
+See \code{NEWS.md} for further details.
 }
 \examples{
 set.seed(1)

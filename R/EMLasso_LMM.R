@@ -5,8 +5,9 @@
 #'
 #' Fits a linear mixed model with a lasso penalty on the fixed-effects
 #' coefficients for a single, fixed value of the tuning parameter `lambda`,
-#' using an Expectation-Maximization (EM) algorithm. At each E-step, random
-#' effects are integrated out in closed form; at each M-step, the fixed
+#' using an Expectation-Maximization (EM) algorithm. At each E-step, the random
+#' effects are treated as missing data and their conditional means and
+#' covariances are computed in closed form; at each M-step, the fixed
 #' effects are updated by a coordinate-descent lasso fit ([glmnet::glmnet()])
 #' on the random-effects-adjusted response, and the variance components are
 #' updated in closed form.
@@ -15,7 +16,7 @@
 #' \eqn{Y_i = X_i \beta + Z_i b_i + \epsilon_i}, with
 #' \eqn{b_i \sim N_q(0, D)} independent of \eqn{\epsilon_i \sim N_{n_i}(0,
 #' \sigma^2 I_{n_i})}, so the covariance for subject/cluster
-#' \eqn{i} is \eqn{\Psi_i = Z_i D Z_i' + \sigma^2 I_{n_i}}.
+#' \eqn{i} is \eqn{\Sigma_i = Z_i D Z_i' + \sigma^2 I_{n_i}}.
 #'
 #' `lambda` here plays the role of \eqn{\lambda^{(k)}} in the M-step of
 #' Algorithm 1 of Oliveira et al. (2026) (their Equation 8) -- the penalty
@@ -35,6 +36,8 @@
 #' @param lambda a single non-negative penalty value.
 #' @param intercept if `TRUE`, force an intercept into the fixed-effects
 #'   design matrix; if `FALSE` (the default), force it out.
+#' @param center if `TRUE` and `intercept = FALSE`, centre the response and
+#'   every fixed-effect covariate at their overall means before fitting.
 #' @param precision convergence tolerance on the Euclidean distance between
 #'   successive parameter vectors (beta, sigma2, D).
 #' @param MaxIter maximum number of EM iterations.
@@ -64,7 +67,7 @@
 #'   when it is called from a BIC search.
 #' @noRd
 EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
-                         intercept = FALSE, precision = 1e-6, MaxIter = 200,
+                         intercept = FALSE, center = TRUE, precision = 1e-6, MaxIter = 200,
                          penalty_factor = NULL, standardize_x = TRUE,
                          refit = FALSE, verbose = interactive()) {
   cl <- match.call()
@@ -88,13 +91,24 @@ EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
          "coefficient, including the intercept if present).", call. = FALSE)
   }
 
-  # --- Standardize x (scale only, no centering) ---
   has_intercept <- "(Intercept)" %in% colnames(x)
+  x_orig <- x; y_orig <- y
+
+  # --- Centre y and x (only without an intercept column, which would
+  # otherwise absorb the means) ---
+  centered <- isTRUE(center) && !has_intercept
+  if (centered) {
+    y_mean <- mean(y)
+    x_means <- colMeans(x)
+    y <- y - y_mean
+    x <- sweep(x, 2, x_means, "-")
+  }
+
+  # --- Standardize x (scale only; centring, if any, is done above) ---
   if (standardize_x) {
     x_sd <- apply(x, 2, stats::sd)
     if (has_intercept) x_sd[["(Intercept)"]] <- 1
     x_sd[x_sd == 0] <- 1 # guard against a constant/degenerate covariate
-    x_orig <- x
     x <- sweep(x, 2, x_sd, "/")
   }
   glmnet_standardize <- !standardize_x
@@ -180,7 +194,6 @@ EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
     teta <- c(beta, sigmae, D[upper.tri(D, diag = TRUE)])
     criterio <- sqrt(sum((teta1 - teta)^2))
 
-    if (count == MaxIter) criterio <- precision / 10
   }
 
   teta <- c(beta, sigmae, D[upper.tri(D, diag = TRUE)])
@@ -188,11 +201,10 @@ EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
   AIC <- -2 * loglik + 2 * npar
   BIC <- -2 * loglik + log(N) * npar
 
-  # --- Undo the internal standardization ---
-  if (standardize_x) {
-    beta <- beta / x_sd
-    x <- x_orig
-  }
+  # --- Undo the internal standardization and centring ---
+  if (standardize_x) beta <- beta / x_sd
+  x <- x_orig; y <- y_orig
+  implied_intercept <- if (centered) y_mean - sum(x_means * beta) else 0
 
   ranef <- t(b)
   rownames(ranef) <- dp$groups
@@ -201,6 +213,8 @@ EMLasso_LMM <- function(data, formFixed, groupVar, formRandom = ~1, lambda,
 
   obj <- list(
     coefficients = beta,
+    implied_intercept = implied_intercept,
+    centered = centered,
     sigma2 = sigmae,
     D = D,
     ranef = ranef,
